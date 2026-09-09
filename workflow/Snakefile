@@ -1,1 +1,51 @@
+#Snakefile
 
+import pandas as pd 
+from snakemake.utils import min_version, validate
+
+min_version("9.0")
+
+configfile: "config/config.yaml"
+
+LIBRARY_BATCHES, = glob_wildcards("data/{library_batch}.matrix.mtx.gz")
+
+wildcard_constraints:
+    library_batch=r"[A-Za-z0-9_\-]+",
+
+
+def get_batch_files(wildcards):
+    return {
+        "matrix": f"data/{wildcards.library_batch}.matrix.mtx.gz",
+        "barcodes": f"data/{wildcards.library_batch}.barcodes.tsv.gz",
+        "features": f"data/{wildcards.library_batch}.features.tsv.gz",
+        "mapping": config["mapping_csv"],
+    }
+
+#solo es mi regla all, meta: tener un rds por specimenID
+rule all:
+    input:
+        expand(
+            "results/specimens_by_batch/{library_batch}",
+            library_batch=LIBRARY_BATCHES,
+        ),
+    default_target: True
+
+#La regla principal que hace el demultiplexing , toma cada archivo de ibreria y usando el scriot de 
+#R hace el demultiplexing y genera un rds por specimenID
+
+rule demultiplex_batch:
+    input:
+        unpack(get_batch_files),
+    output:
+        directory("results/specimens_by_batch/{library_batch}"),
+    log:
+        "logs/demultiplex_batch/{library_batch}.log",
+    benchmark:
+        "benchmarks/demultiplex_batch/{library_batch}.tsv"
+    threads: 2
+    resources:
+        mem_mb=16000,
+    conda:
+        "envs/seurat_demultiplexing.yaml"
+    script:
+        "scripts/demultiplex_batch.R"

@@ -1,1 +1,6 @@
 mapping_csv: resources/ROSMAP_snRNAseq_demultiplexed_ID_mapping.csv
+
+qc:
+  min_features_per_cell: 700
+  min_counts_per_cell: 1500
+  max_pct_mito: 13

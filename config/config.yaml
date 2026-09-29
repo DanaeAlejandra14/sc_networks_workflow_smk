@@ -4,3 +4,22 @@ qc:
   min_features_per_cell: 700
   min_counts_per_cell: 1500
   max_pct_mito: 13
+
+doublet_detection:
+  seed: 42
+
+normalization:
+  scale_factor: 10000 # es solo es defacult de LongNormalize ]
+
+#After removing unwanted cells from the dataset, the next step is to normalize 
+#the data. By default, we employ a global-scaling normalization 
+#method “LogNormalize” that normalizes the feature expression measurements
+## for each cell by the total expression, multiplies this by a scale factor 
+#(10,000 by default),
+
+
+annotation:
+  reference_csv: resources/cell-annotation.full-atlas.csv
+  celltypist_model: resources/Adult_Human_PrefrontalCortex.pkl
+  majority_voting: true
+  min_prob: 0.6

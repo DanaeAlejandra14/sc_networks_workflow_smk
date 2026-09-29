@@ -1,67 +1,242 @@
-#Snakefile
+# Snakefile
 
-import pandas as pd 
+import pandas as pd
 from snakemake.utils import min_version
+from snakemake.shell import shell
 
+shell.executable("/bin/bash")
 min_version("9.0")
+
 
 configfile: "config/config.yaml"
 
-LIBRARY_BATCHES, = glob_wildcards("data/{library_batch}.matrix.mtx.gz")
-#global_wildcards: mira que archivos existen en mi data y extrae los valores que encajan con el wildcard
+
+(LIBRARY_BATCHES,) = glob_wildcards("data/{library_batch}.matrix.mtx.gz")
+# global_wildcards: mira que archivos existen en mi data y extrae los valores que encajan con el wildcard
 # ","-> desempacking, para que quede como lista y no como tupla
+
 
 wildcard_constraints:
     library_batch=r"[A-Za-z0-9_\-]+",
-#una secuencia de uno o más caracteres, donde cada uno es letra, número, guion bajo o guion medio — nada más
 
-#solo es mi regla all, meta: tener un rds por specimenID
-# rule all:
-#     input:
-#         expand(
-#             "results/specimens_by_batch/{library_batch}",
-#             library_batch=LIBRARY_BATCHES,
-#         )
+
+# una secuencia de uno o más caracteres, donde cada uno es letra, número, guion bajo o guion medio — nada más
 
 
 rule all:
     input:
         expand(
-            "results/qc_filtered/{library_batch}",
+            "results/annotated/{library_batch}",
             library_batch=LIBRARY_BATCHES,
-        )
+        ),
+        "results/qc_reports/qc_summary_all.csv",
+        "results/doublet_reports/doublet_summary_all.csv",
 
-#La regla principal que hace el demultiplexing , toma cada archivo de ibreria y usando el scriot de 
-#R hace el demultiplexing y genera un rds por specimenID
+
+# La regla principal que hace el demultiplexing , toma cada archivo de ibreria y usando el scriot de
+# R hace el demultiplexing y genera un rds por specimenID
+
 
 rule demultiplex_batch:
     input:
         matrix="data/{library_batch}.matrix.mtx.gz",
         barcodes="data/{library_batch}.barcodes.tsv.gz",
         features="data/{library_batch}.features.tsv.gz",
-        mapping=config["mapping_csv"], 
+        mapping=config["mapping_csv"],
     output:
         directory("results/specimens_by_batch/{library_batch}"),
     log:
-        "logs/demultiplex_batch/{library_batch}.log"
-    threads: 2
+        "logs/demultiplex_batch/{library_batch}.log",
     conda:
         "envs/seurat_demultiplexing.yaml"
+    threads: 2
     script:
-        "scripts/demultiplex_batch.R"
+        "scripts/1_demultiplex_batch.R"
 
-#Regla que hace el QC de los rds generados por la regla anterior, toma cada rds y usando el script de R hace el QC y genera un rds por specimenID
 
+# Regla que hace el QC de los rds generados por la regla anterior, toma cada rds y usando el script de R hace el QC y genera un rds por specimenID
 rule qc_batch:
-    input: #cada uno de las carpetas de cada batch
+    input:  #cada uno de las carpetas de cada batch
         specimens_dir="results/specimens_by_batch/{library_batch}",
-    output: # dos outputs 
-        qc_dir=directory("results/qc_filtered/{library_batch}"), # directorio para guardar los archivos rds filtrados
-        summary="results/qc_reports/{library_batch}_qc_summary.csv", # archivo csv para guardar el resumen de QC
+    output:  # dos outputs 
+        qc_dir=directory("results/qc_filtered/{library_batch}"),  # directorio para guardar los archivos rds filtrados
+        summary="results/qc_reports/{library_batch}_qc_summary.csv",  # archivo csv para guardar el resumen de QC
+        cells="results/qc_reports/{library_batch}_qc_cells.csv",  # <- nuevo
     log:
         "logs/qc_batch/{library_batch}.log",
-    threads: 2
     conda:
         "envs/seurat_demultiplexing.yaml"
+    threads: 2
     script:
-        "scripts/qc_filter.R"
+        "scripts/2_qc_filter.R"
+
+
+# rule scDobleFinder
+rule doublet_detection:
+    input:
+        qc_dir="results/qc_filtered/{library_batch}",
+    output:
+        doublet_dir=directory("results/doublets_flagged/{library_batch}"),  # <- el cambio va aquí
+        summary="results/doublet_reports/{library_batch}_doublet_summary.csv",
+        cells="results/doublet_reports/{library_batch}_doublet_cells.csv",  # <- nuevo
+    log:
+        "logs/doublet_detection/{library_batch}.log",
+    conda:
+        "envs/scdblfinder.yaml"
+    threads: 2
+    script:
+        "scripts/3_doublet_detection.R"
+
+
+# Plots de todo
+rule plots_qc_doublets:
+    input:
+        qc=expand(
+            "results/qc_reports/{library_batch}_qc_summary.csv",
+            library_batch=LIBRARY_BATCHES,
+        ),
+        doublets=expand(
+            "results/doublet_reports/{library_batch}_doublet_summary.csv",
+            library_batch=LIBRARY_BATCHES,
+        ),
+        qc_cells=expand(
+            "results/qc_reports/{library_batch}_qc_cells.csv",
+            library_batch=LIBRARY_BATCHES,
+        ),
+        doublet_cells=expand(
+            "results/doublet_reports/{library_batch}_doublet_cells.csv",
+            library_batch=LIBRARY_BATCHES,
+        ),
+    output:
+        # --- lo que ya tenías (sin cambios) ---
+        summary="results/qc_reports/qc_and_doublets_summary_all.csv",
+        pct_kept="results/plots/qc_doublets/01_pct_cells_kept_per_specimen.png",
+        pct_doublet="results/plots/qc_doublets/02_pct_doublet_per_specimen.png",
+        cells_before_after="results/plots/qc_doublets/03_cells_before_after_per_specimen.png",
+        qc_failure_reasons="results/plots/qc_doublets/04_qc_failure_reasons_per_specimen.png",
+        scatter_kept_vs_doublet="results/plots/qc_doublets/05_scatter_pct_kept_vs_pct_doublet.png",
+        doublet_by_batch="results/plots/qc_doublets/06_pct_doublet_by_batch_boxplot.png",
+        kept_by_batch="results/plots/qc_doublets/07_pct_cells_kept_by_batch_boxplot.png",
+        # --- nuevo: plots globales por célula ---
+        hist_mt="results/plots/qc_doublets/08_hist_percent_mt_global.png",
+        hist_nfeature="results/plots/qc_doublets/09_hist_nFeature_global.png",
+        hist_ncount="results/plots/qc_doublets/10_hist_nCount_global.png",
+        scatter_mito_gradient="results/plots/qc_doublets/11_scatter_mito_gradient_global.png",
+        scatter_keep_cf="results/plots/qc_doublets/12_scatter_keep_remove_CF_global.png",
+        scatter_keep_mt="results/plots/qc_doublets/13_scatter_keep_remove_MT_global.png",
+        scatter_keep_all="results/plots/qc_doublets/14_scatter_keep_remove_ALL_global.png",
+        violin_mt="results/plots/qc_doublets/15_violin_percent_mt_keep_global.png",
+        violin_nfeature="results/plots/qc_doublets/16_violin_nFeature_keep_global.png",
+        violin_ncount="results/plots/qc_doublets/17_violin_nCount_keep_global.png",
+        scatter_doublets_keep="results/plots/qc_doublets/18_scatter_doublets_keep_remove_global.png",
+        scatter_doublets_class="results/plots/qc_doublets/19_scatter_doublets_class_global.png",
+        violin_doublet_score="results/plots/qc_doublets/20_violin_doublet_score_by_class_global.png",
+        pdf_all="results/plots/qc_doublets/qc_doublets_all_plots.pdf",
+    log:
+        "logs/plots_qc_doublets/plots_qc_doublets.log",
+    conda:
+        "envs/qc_doublets_plots.yaml"
+    script:
+        "scripts/2.1_plots_qc_doublets.R"
+
+
+# normalization, se aplica un LogNormalize a cada uno de los rds
+rule normalize_batch:
+    input:
+        doublet_dir="results/doublets_flagged/{library_batch}",
+    output:
+        norm_dir=directory("results/normalized/{library_batch}"),
+    log:
+        "logs/normalize_batch/{library_batch}.log",
+    conda:
+        "envs/seurat_demultiplexing.yaml"
+    threads: 2
+    script:
+        "scripts/5_normalize_batch.R"
+
+
+# Empezamos por anotar
+
+
+rule annotate_reference_batch:
+    input:
+        norm_dir="results/normalized/{library_batch}",
+    output:
+        annotated_dir=directory("results/annotated_reference/{library_batch}"),
+    log:
+        "logs/annotate_reference_batch/{library_batch}.log",
+    conda:
+        "envs/seurat_demultiplexing.yaml"
+    threads: 2
+    script:
+        "scripts/6_annotate_reference_batch.R"
+
+
+# Exportar las células que no se asignan con el modelo de referencia
+
+
+rule export_unassigned:
+    input:
+        expand(
+            "results/annotated_reference/{library_batch}",
+            library_batch=LIBRARY_BATCHES,
+        ),
+    output:
+        h5ad="results/unassigned_export/unassigned.h5ad",
+    log:
+        "logs/export_unassigned/export_unassigned.log",
+    conda:
+        "envs/seuratdisk.yaml"
+    script:
+        "scripts/7_export_unassigned.R"
+
+
+# cell typist , anotacion de las celulas no asignadas con un modelo de referencia, usando celltypist, un modelo de anotacion de celulas basado en aprendizaje
+rule run_celltypist:
+    input:
+        h5ad="results/unassigned_export/unassigned.h5ad",
+    output:
+        predictions="results/unassigned_export/unassigned_celltypist_predictions.csv",
+    params:
+        model=config["annotation"]["celltypist_model"],
+        majority_voting=config["annotation"]["majority_voting"],
+        min_prob=config["annotation"]["min_prob"],
+    log:
+        "logs/run_celltypist/run_celltypist.log",
+    conda:
+        "envs/celltypist_env.yaml"
+    shell:
+        "$CONDA_PREFIX/bin/python workflow/scripts/8_run_celltypist.py "
+        "--h5ad {input.h5ad} "
+        "--model {params.model} "
+        "--majority-voting {params.majority_voting} "
+        "--min-prob {params.min_prob} "
+        "--out {output.predictions} "
+        "> {log} 2>&1"
+
+
+rule merge_celltypist_back:
+    input:
+        annotated_dir="results/annotated_reference/{library_batch}",
+        predictions="results/unassigned_export/unassigned_celltypist_predictions.csv",
+    output:
+        final_dir=directory("results/annotated/{library_batch}"),
+    log:
+        "logs/merge_celltypist_back/{library_batch}.log",
+    conda:
+        "envs/seurat_demultiplexing.yaml"
+    threads: 2
+    script:
+        "scripts/9_merge_celltypist_back.R"
+
+
+# Nexts steps
+
+# 1)
+# paso intermedio antes de la separacion , hacer paso de quitar dobletes corriborando
+# con anotación celular
+
+
+# 2) Agregar mi metadata de paciente
+
+# 3)

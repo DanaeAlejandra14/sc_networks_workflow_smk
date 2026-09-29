@@ -1,0 +1,14 @@
+name: celltypist_env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numpy=1.26
+  - pandas=2.2
+  - scipy
+  - scikit-learn
+  - anndata=0.10.9
+  - scanpy=1.10.4
+  - pip
+  - pip:
+      - celltypist

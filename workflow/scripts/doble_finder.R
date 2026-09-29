@@ -1,1 +1,0 @@
-# doble finder script

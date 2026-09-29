@@ -24,6 +24,7 @@ rds_files <- list.files(specimens_dir, pattern = "\\.rds$", full.names = TRUE) #
 message("Found ", length(rds_files), " specimen(s) in this batch")
 
 qc_summary <- list() # crea la lista vacia para guardar el resumen de QC de cada specimen_id
+qc_cells   <- list()   # <- nuevo
 
 for (rds_file in rds_files) { # ciclo "for" en cada vuelta de el loop 
 
@@ -75,7 +76,29 @@ for (rds_file in rds_files) { # ciclo "for" en cada vuelta de el loop
     n_fail_min_counts = n_fail_counts,
     n_fail_max_pct_mito = n_fail_mito
   )
+
+  # Guardar métricas por CÉLULA (antes del filtro) para plots globales
+  cell_df <- tibble(
+    library_batch = batch_name,
+    specimenID    = specimen_id,
+    cell_barcode  = colnames(obj),
+    nFeature_RNA  = obj$nFeature_RNA,
+    nCount_RNA    = obj$nCount_RNA,
+    percent_mt    = obj$percent.mt
+  ) %>%
+    mutate(
+      keep_cf  = if_else(nFeature_RNA > min_features & nCount_RNA > min_counts, "keep", "remove"),
+      keep_mt  = if_else(percent_mt < max_pct_mito, "keep", "remove"),
+      keep_all = if_else(keep_cf == "keep" & keep_mt == "keep", "keep", "remove")
+    )
+  qc_cells[[specimen_id]] <- cell_df
+  
+
 }
+
+qc_cells_df <- bind_rows(qc_cells)
+write_csv(qc_cells_df, snakemake@output[["cells"]])
+message("Per-cell QC metrics written to: ", snakemake@output[["cells"]])
 
 # Déspues de el lopp por cada specimen_id 
 qc_summary_df <- bind_rows(qc_summary) #toma cada una de las filas por specimenID y las junta en un solo tibble

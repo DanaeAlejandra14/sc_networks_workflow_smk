@@ -29,9 +29,15 @@ rule all:
             "results/annotated/{library_batch}",
             library_batch=LIBRARY_BATCHES,
         ),
+        expand(
+            "results/phenotyped/{library_batch}",
+            library_batch=LIBRARY_BATCHES,
+        ),
         "results/qc_reports/qc_summary_all.csv",
         "results/doublet_reports/doublet_summary_all.csv",
-
+        "results/annotation_plots/combined_umap_celltype.png",
+        "results/annotation_plots/combined_umap_source.png",
+        "results/annotation_plots/combined_umap_batch.png",
 
 # La regla principal que hace el demultiplexing , toma cada archivo de ibreria y usando el scriot de
 # R hace el demultiplexing y genera un rds por specimenID
@@ -229,14 +235,54 @@ rule merge_celltypist_back:
     script:
         "scripts/9_merge_celltypist_back.R"
 
+rule plot_combined_umap:
+    input:
+        annotated_dirs=expand(
+            "results/annotated/{library_batch}",
+            library_batch=LIBRARY_BATCHES,
+        ),
+    output:
+        umap_celltype="results/annotation_plots/combined_umap_celltype.png",
+        umap_source="results/annotation_plots/combined_umap_source.png",
+        umap_batch="results/annotation_plots/combined_umap_batch.png",
+    log:
+        "logs/plot_combined_umap/plot_combined_umap.log",
+    conda:
+        "envs/seurat_demultiplexing.yaml"
+    threads: 4
+    script:
+        "scripts/9.1_plot_combined_umap.R"
+
+#Agregar mi metadata de paciente
+
+rule stratify_phenotype:
+    output:
+        "results/phenotype/individual_phenotype_labels.csv",
+    params:
+        thresholds=config["phenotype"]["thresholds"],  # para que Snakemake detecte cambios en el config
+    log:
+        "logs/stratify_phenotype/stratify_phenotype.log",
+    conda:
+        "envs/seurat_demultiplexing.yaml"
+    script:
+        "scripts/10_stratify_phenotype.R"
+
+
+rule attach_phenotype:
+    input:
+        annotated_dir="results/annotated/{library_batch}",
+        phenotype="results/phenotype/individual_phenotype_labels.csv",
+    output:
+        phenotyped_dir=directory("results/phenotyped/{library_batch}"),
+    log:
+        "logs/attach_phenotype/{library_batch}.log",
+    conda:
+        "envs/seurat_demultiplexing.yaml"
+    threads: 2
+    script:
+        "scripts/11_attach_phenotype.R"
+
 
 # Nexts steps
-
-# 1)
-# paso intermedio antes de la separacion , hacer paso de quitar dobletes corriborando
-# con anotación celular
-
-
-# 2) Agregar mi metadata de paciente
 
 # 3)

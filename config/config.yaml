@@ -23,3 +23,14 @@ annotation:
   celltypist_model: resources/Adult_Human_PrefrontalCortex.pkl
   majority_voting: true
   min_prob: 0.6
+
+# Etratificación de los pacientes en grupos de control y AD según los criterios de neuropatología y cognición.
+phenotype:
+  clinical_csv: resources/ROSMAP_clinical.csv
+  thresholds:
+    braaksc_ad_min: 3
+    ceradsc_ad: [1, 2]
+    ceradsc_control: [3, 4]
+    cogdx_control: [1]
+    cogdx_ad_symptomatic: [4, 5]
+    cogdx_mci: [2, 3]  

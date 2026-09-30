@@ -60,8 +60,35 @@ for (rds_file in rds_files) {
           " | rescued: ", sum(obj$annotation_source == "celltypist"),
           " | still unassigned: ", sum(obj$annotation_source == "unassigned"))
 
-  saveRDS(obj, file.path(final_dir, paste0(specimen_id, ".rds")), compress = "gzip")
-}
+    obj$annotation_source <- "original"
+    obj$annotation_source[fill_cells] <- "celltypist"
+    obj$annotation_source[is.na(obj$cell_type)] <- "unassigned"
+
+    message("  original: ", sum(obj$annotation_source == "original"),
+            " | rescued: ", sum(obj$annotation_source == "celltypist"),
+            " | still unassigned: ", sum(obj$annotation_source == "unassigned"))
+
+    # --- UMAP de inspección visual (sin integración, solo QC de la anotación) ---
+    obj <- FindVariableFeatures(obj, selection.method = "vst", nfeatures = 2000)
+    obj <- ScaleData(obj, verbose = FALSE)
+    obj <- RunPCA(obj, npcs = 30, verbose = FALSE)
+    obj <- RunUMAP(obj, dims = 1:30, verbose = FALSE)
+
+    p1 <- DimPlot(obj, group.by = "cell_type", label = TRUE, repel = TRUE) +
+      NoLegend() + ggtitle(paste0(specimen_id, " - cell_type"))
+    p2 <- DimPlot(obj, group.by = "annotation_source") +
+      ggtitle(paste0(specimen_id, " - annotation_source"))
+
+    ggsave(file.path(final_dir, paste0(specimen_id, "_umap_celltype.png")),
+           p1, width = 7, height = 6, dpi = 150)
+    ggsave(file.path(final_dir, paste0(specimen_id, "_umap_source.png")),
+           p2, width = 7, height = 6, dpi = 150)
+    # --- fin bloque UMAP ---
+
+    saveRDS(obj, file.path(final_dir, paste0(specimen_id, ".rds")), compress = "gzip")
+  }
 
 message("Merge complete for batch: ", batch_name)
 sink(type = "message"); sink()
+
+

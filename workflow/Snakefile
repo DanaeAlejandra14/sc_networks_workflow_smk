@@ -14,23 +14,20 @@ configfile: "config/config.yaml"
 (LIBRARY_BATCHES,) = glob_wildcards("data/{library_batch}.matrix.mtx.gz")
 # global_wildcards: mira que archivos existen en mi data y extrae los valores que encajan con el wildcard
 # ","-> desempacking, para que quede como lista y no como tupla
-
+PHENOTYPES = config["phenotype"]["categories"]
+CELL_TYPES = config["cell_type"]["selected"]
 
 wildcard_constraints:
     library_batch=r"[A-Za-z0-9_\-]+",
+    phenotype=r"[^/]+",
+    cell_type=r"[^/]+",
 
 
 # una secuencia de uno o más caracteres, donde cada uno es letra, número, guion bajo o guion medio — nada más
-
-
 rule all:
     input:
         expand(
             "results/annotated/{library_batch}",
-            library_batch=LIBRARY_BATCHES,
-        ),
-        expand(
-            "results/phenotyped/{library_batch}",
             library_batch=LIBRARY_BATCHES,
         ),
         "results/qc_reports/qc_summary_all.csv",
@@ -38,7 +35,16 @@ rule all:
         "results/annotation_plots/combined_umap_celltype.png",
         "results/annotation_plots/combined_umap_source.png",
         "results/annotation_plots/combined_umap_batch.png",
-
+        "results/annotation_diagnostics",
+        expand(
+            "results/plots/normalization/{library_batch}_counts_vs_data.png",
+            library_batch=LIBRARY_BATCHES,
+        ),
+        expand(
+            "results/phenotype/{phenotype}/{cell_type}/integrated.rds",
+            phenotype=PHENOTYPES,
+            cell_type=CELL_TYPES,
+        ),
 # La regla principal que hace el demultiplexing , toma cada archivo de ibreria y usando el scriot de
 # R hace el demultiplexing y genera un rds por specimenID
 
@@ -59,11 +65,42 @@ rule demultiplex_batch:
     script:
         "scripts/1_demultiplex_batch.R"
 
+#Aqui agregamos el fenotipo -CAMBIO 
+#Agregar mi metadata de paciente
+
+rule stratify_phenotype:
+    output:
+        "resources/individual_phenotype_labels.csv",
+    params:
+        thresholds=config["phenotype"]["thresholds"],
+    log:
+        "logs/stratify_phenotype/stratify_phenotype.log",
+    conda:
+        "envs/seurat_demultiplexing.yaml"
+    script:
+        "scripts/1.1_stratify_phenotype.R"
+ 
+rule attach_and_filter_phenotype:
+    input:
+        specimens_dir="results/specimens_by_batch/{library_batch}",
+        phenotype="resources/individual_phenotype_labels.csv",
+    output:
+        filtered_dir=directory("results/specimens_filtered/{library_batch}"),
+        excluded_dir=directory("results/specimens_excluded/{library_batch}"),
+    log:
+        "logs/attach_and_filter_phenotype/{library_batch}.log",
+    conda:
+        "envs/seurat_demultiplexing.yaml"
+    threads: 2
+    script:
+        "scripts/1.5_attach_and_filter_phenotype.R"
+
 
 # Regla que hace el QC de los rds generados por la regla anterior, toma cada rds y usando el script de R hace el QC y genera un rds por specimenID
+
 rule qc_batch:
     input:  #cada uno de las carpetas de cada batch
-        specimens_dir="results/specimens_by_batch/{library_batch}",
+        specimens_dir="results/specimens_filtered/{library_batch}",
     output:  # dos outputs 
         qc_dir=directory("results/qc_filtered/{library_batch}"),  # directorio para guardar los archivos rds filtrados
         summary="results/qc_reports/{library_batch}_qc_summary.csv",  # archivo csv para guardar el resumen de QC
@@ -114,16 +151,12 @@ rule plots_qc_doublets:
             library_batch=LIBRARY_BATCHES,
         ),
     output:
-        # --- lo que ya tenías (sin cambios) ---
+        # #  plots globales por specimen
         summary="results/qc_reports/qc_and_doublets_summary_all.csv",
         pct_kept="results/plots/qc_doublets/01_pct_cells_kept_per_specimen.png",
         pct_doublet="results/plots/qc_doublets/02_pct_doublet_per_specimen.png",
         cells_before_after="results/plots/qc_doublets/03_cells_before_after_per_specimen.png",
-        qc_failure_reasons="results/plots/qc_doublets/04_qc_failure_reasons_per_specimen.png",
-        scatter_kept_vs_doublet="results/plots/qc_doublets/05_scatter_pct_kept_vs_pct_doublet.png",
-        doublet_by_batch="results/plots/qc_doublets/06_pct_doublet_by_batch_boxplot.png",
-        kept_by_batch="results/plots/qc_doublets/07_pct_cells_kept_by_batch_boxplot.png",
-        # --- nuevo: plots globales por célula ---
+        #  plots globales por célula 
         hist_mt="results/plots/qc_doublets/08_hist_percent_mt_global.png",
         hist_nfeature="results/plots/qc_doublets/09_hist_nFeature_global.png",
         hist_ncount="results/plots/qc_doublets/10_hist_nCount_global.png",
@@ -131,12 +164,7 @@ rule plots_qc_doublets:
         scatter_keep_cf="results/plots/qc_doublets/12_scatter_keep_remove_CF_global.png",
         scatter_keep_mt="results/plots/qc_doublets/13_scatter_keep_remove_MT_global.png",
         scatter_keep_all="results/plots/qc_doublets/14_scatter_keep_remove_ALL_global.png",
-        violin_mt="results/plots/qc_doublets/15_violin_percent_mt_keep_global.png",
-        violin_nfeature="results/plots/qc_doublets/16_violin_nFeature_keep_global.png",
-        violin_ncount="results/plots/qc_doublets/17_violin_nCount_keep_global.png",
-        scatter_doublets_keep="results/plots/qc_doublets/18_scatter_doublets_keep_remove_global.png",
         scatter_doublets_class="results/plots/qc_doublets/19_scatter_doublets_class_global.png",
-        violin_doublet_score="results/plots/qc_doublets/20_violin_doublet_score_by_class_global.png",
         pdf_all="results/plots/qc_doublets/qc_doublets_all_plots.pdf",
     log:
         "logs/plots_qc_doublets/plots_qc_doublets.log",
@@ -160,7 +188,18 @@ rule normalize_batch:
     script:
         "scripts/5_normalize_batch.R"
 
-
+rule plot_normalization:
+    input:
+        norm_dir="results/normalized/{library_batch}",
+    output:
+        "results/plots/normalization/{library_batch}_counts_vs_data.png",
+    log:
+        "logs/plot_normalization/{library_batch}.log",
+    conda:
+        "envs/seurat_demultiplexing.yaml"
+    threads: 2
+    script:
+        "scripts/5.1_plot_normalization.R"
 # Empezamos por anotar
 
 
@@ -245,44 +284,116 @@ rule plot_combined_umap:
         umap_celltype="results/annotation_plots/combined_umap_celltype.png",
         umap_source="results/annotation_plots/combined_umap_source.png",
         umap_batch="results/annotation_plots/combined_umap_batch.png",
+        diagnostics_dir=directory("results/annotation_diagnostics"),
     log:
         "logs/plot_combined_umap/plot_combined_umap.log",
     conda:
         "envs/seurat_demultiplexing.yaml"
     threads: 4
     script:
-        "scripts/9.1_plot_combined_umap.R"
+        "scripts/9.1_diagnostics_and_umap.R"
 
-#Agregar mi metadata de paciente
-
-rule stratify_phenotype:
-    output:
-        "results/phenotype/individual_phenotype_labels.csv",
-    params:
-        thresholds=config["phenotype"]["thresholds"],  # para que Snakemake detecte cambios en el config
-    log:
-        "logs/stratify_phenotype/stratify_phenotype.log",
-    conda:
-        "envs/seurat_demultiplexing.yaml"
-    script:
-        "scripts/10_stratify_phenotype.R"
-
-
-rule attach_phenotype:
+rule split_by_phenotype:
     input:
-        annotated_dir="results/annotated/{library_batch}",
-        phenotype="results/phenotype/individual_phenotype_labels.csv",
+        annotated_dirs=expand(
+            "results/annotated/{library_batch}",
+            library_batch=LIBRARY_BATCHES,
+        ),
     output:
-        phenotyped_dir=directory("results/phenotyped/{library_batch}"),
+        directory("results/phenotype_split/{phenotype}"),
     log:
-        "logs/attach_phenotype/{library_batch}.log",
+        "logs/split_by_phenotype/{phenotype}.log",
     conda:
         "envs/seurat_demultiplexing.yaml"
     threads: 2
     script:
-        "scripts/11_attach_phenotype.R"
+        "scripts/10.1_split_by_phenotype.R"
 
 
-# Nexts steps
+rule split_by_cell_type:
+    input:
+        phenotype_dir="results/phenotype_split/{phenotype}",
+    output:
+        directory("results/celltype_split/{phenotype}/{cell_type}"),
+    log:
+        "logs/split_by_cell_type/{phenotype}_{cell_type}.log",
+    conda:
+        "envs/seurat_demultiplexing.yaml"
+    threads: 2
+    script:
+        "scripts/10.2_split_by_cell_type.R"
 
-# 3)
+
+rule merge_phenotype_celltype:
+    input:
+        "results/celltype_split/{phenotype}/{cell_type}",
+    output:
+        "results/phenotype/{phenotype}/{cell_type}/merged.rds",
+    log:
+        "logs/merge_phenotype_celltype/{phenotype}_{cell_type}.log",
+    conda:
+        "envs/seurat_demultiplexing.yaml"
+    threads: 2
+    script:
+        "scripts/11_merge_phenotype_celltype.R"
+
+
+#iNTEGRACION
+
+rule integrate_phenotype_celltype:
+    input:
+        merged="results/phenotype/{phenotype}/{cell_type}/merged.rds",
+    output:
+        "results/phenotype/{phenotype}/{cell_type}/integrated.rds",
+    log:
+        "logs/integrate_phenotype_celltype/{phenotype}_{cell_type}.log",
+    conda:
+        "envs/harmony_integration.yaml"
+    threads: 4
+    script:
+        "scripts/12_integrate_phenotype_celltype.R"
+
+#Super cell 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Super cell 
+
+
+
+
+#ARACNE 

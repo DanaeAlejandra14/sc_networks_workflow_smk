@@ -16,10 +16,6 @@ summary_path  <- snakemake@output[["summary"]]
 message("Aggregating ", length(qc_files), " QC summary file(s) and ",
         length(doublet_files), " doublet summary file(s)")
 
-# library_batch se obtiene del NOMBRE del archivo, no de specimenID,
-# porque Snakemake garantiza el patrón "{library_batch}_qc_summary.csv"
-# / "{library_batch}_doublet_summary.csv" vía el wildcard. Evita parsear
-# specimenID con regex (frágil, p.ej. para "191122-B6-R1710143-alone").
 read_with_batch <- function(path, suffix) {
   batch <- basename(path) %>% str_remove(fixed(suffix))
   read_csv(path, show_col_types = FALSE) %>%
@@ -89,61 +85,9 @@ p_cells_before_after <- df %>%
   base_theme
 save_plot_png(p_cells_before_after, snakemake@output[["cells_before_after"]], height = bar_height + 1)
 
-# 04 - desglose de razones de falla de QC por specimen (stacked bar)
-p_fail_reasons <- df %>%
-  select(specimenID, n_fail_min_features, n_fail_min_counts, n_fail_max_pct_mito) %>%
-  pivot_longer(
-    c(n_fail_min_features, n_fail_min_counts, n_fail_max_pct_mito),
-    names_to = "criterio", values_to = "n_celulas_fallidas"
-  ) %>%
-  mutate(criterio = recode(criterio,
-    n_fail_min_features = "min_features",
-    n_fail_min_counts   = "min_counts",
-    n_fail_max_pct_mito = "max_pct_mito"
-  )) %>%
-  ggplot(aes(x = reorder(specimenID, n_celulas_fallidas), y = n_celulas_fallidas, fill = criterio)) +
-  geom_col(colour = "black") +
-  coord_flip() +
-  ggtitle("Células que fallan cada criterio de QC, por specimen") +
-  labs(x = "specimen", y = "n células (puede fallar más de un criterio)", fill = "criterio") +
-  base_theme
-save_plot_png(p_fail_reasons, snakemake@output[["qc_failure_reasons"]], height = bar_height + 1)
-
-# 05 - scatter: pct_cells_kept vs pct_doublet, coloreado por library_batch
-p_scatter <- df %>%
-  ggplot(aes(x = pct_cells_kept, y = pct_doublet, colour = library_batch)) +
-  geom_point(size = 2.5, alpha = 0.85) +
-  ggtitle("Relación entre retención de QC y fracción de doublets") +
-  labs(x = "pct_cells_kept (%)", y = "pct_doublet (%)", colour = "library_batch") +
-  base_theme
-save_plot_png(p_scatter, snakemake@output[["scatter_kept_vs_doublet"]], width = 7, height = 6)
-
-# 06 - pct_doublet por batch (comparación entre batches)
-p_box_doublet <- df %>%
-  ggplot(aes(x = library_batch, y = pct_doublet)) +
-  geom_boxplot(fill = "grey85", colour = "black", outlier.shape = NA) +
-  geom_jitter(width = 0.15, size = 1.5, alpha = 0.7, colour = "cornflowerblue") +
-  ggtitle("Distribución de pct_doublet por library_batch") +
-  labs(x = "library_batch", y = "pct_doublet (%)") +
-  base_theme +
-  theme(axis.text.x = element_text(angle = 30, hjust = 1))
-save_plot_png(p_box_doublet, snakemake@output[["doublet_by_batch"]], width = 8, height = 6)
-
-# 07 - pct_cells_kept por batch (comparación entre batches)
-p_box_kept <- df %>%
-  ggplot(aes(x = library_batch, y = pct_cells_kept)) +
-  geom_boxplot(fill = "grey85", colour = "black", outlier.shape = NA) +
-  geom_jitter(width = 0.15, size = 1.5, alpha = 0.7, colour = "cornflowerblue") +
-  ggtitle("Distribución de pct_cells_kept por library_batch") +
-  labs(x = "library_batch", y = "pct_cells_kept (%)") +
-  base_theme +
-  theme(axis.text.x = element_text(angle = 30, hjust = 1))
-save_plot_png(p_box_kept, snakemake@output[["kept_by_batch"]], width = 8, height = 6)
-
 ## ---- 3. PDF combinado, 2 plots por página -----------------------------
 
-all_plots <- list(p_pct_kept, p_pct_doublet, p_cells_before_after,
-                   p_fail_reasons, p_scatter, p_box_doublet, p_box_kept)
+all_plots <- list(p_pct_kept, p_pct_doublet, p_cells_before_after)
 
 pdf(snakemake@output[["pdf_all"]], width = 8.5, height = 11)
 for (i in seq(1, length(all_plots), by = 2)) {
@@ -178,7 +122,6 @@ doublet_cells_all <- map_dfr(doublet_cell_files, read_csv, show_col_types = FALS
 message("Total cells (QC, pre-filtro): ", nrow(qc_cells_all))
 message("Total cells (doublet, post-QC): ", nrow(doublet_cells_all))
 
-# Umbrales de QC (los mismos que usó qc_batch, vía config)
 min_feat  <- snakemake@config[["qc"]][["min_features_per_cell"]]
 min_count <- snakemake@config[["qc"]][["min_counts_per_cell"]]
 mt_max    <- snakemake@config[["qc"]][["max_pct_mito"]]
@@ -190,7 +133,6 @@ qc_cells_all <- qc_cells_all %>%
     keep_all = factor(keep_all, levels = c("keep", "remove"))
   )
 
-# Downsample por specimen SOLO para los scatters (velocidad de render)
 downsample_per_specimen <- function(df, cap = 10000L) {
   parts <- split(df, df$specimenID, drop = TRUE)
   bind_rows(lapply(parts, function(dd) {
@@ -279,57 +221,15 @@ p_keep_all <- ggplot(qc_cells_ds, aes(nCount_RNA, nFeature_RNA, color = keep_all
   base_theme
 save_plot_png(p_keep_all, snakemake@output[["scatter_keep_all"]], width = 6.8, height = 6.2)
 
-## ---- 15-17: violines globales por keep_all ------------------------------
-
-p_vln_mt <- ggplot(qc_cells_all, aes(x = keep_all, y = percent_mt)) +
-  geom_violin(fill = "grey85", colour = "black", scale = "width") +
-  geom_boxplot(width = 0.12, outlier.size = 0.2, alpha = 0.8) +
-  geom_hline(yintercept = mt_max, linetype = 2, color = "red") +
-  ggtitle("percent_mt global, keep vs remove") +
-  labs(x = "", y = "percent_mt") +
-  base_theme
-save_plot_png(p_vln_mt, snakemake@output[["violin_mt"]], width = 6, height = 6)
-
-p_vln_nf <- ggplot(qc_cells_all, aes(x = keep_all, y = nFeature_RNA)) +
-  geom_violin(fill = "grey85", colour = "black", scale = "width") +
-  geom_boxplot(width = 0.12, outlier.size = 0.2, alpha = 0.8) +
-  geom_hline(yintercept = min_feat, linetype = 2, color = "red") +
-  ggtitle("nFeature_RNA global, keep vs remove") +
-  labs(x = "", y = "nFeature_RNA") +
-  base_theme
-save_plot_png(p_vln_nf, snakemake@output[["violin_nfeature"]], width = 6, height = 6)
-
-p_vln_nc <- ggplot(qc_cells_all, aes(x = keep_all, y = nCount_RNA)) +
-  geom_violin(fill = "grey85", colour = "black", scale = "width") +
-  geom_boxplot(width = 0.12, outlier.size = 0.2, alpha = 0.8) +
-  geom_hline(yintercept = min_count, linetype = 2, color = "red") +
-  scale_y_log10() +
-  ggtitle("nCount_RNA global, keep vs remove (log10)") +
-  labs(x = "", y = "nCount_RNA (log10)") +
-  base_theme
-save_plot_png(p_vln_nc, snakemake@output[["violin_ncount"]], width = 6, height = 6)
-
-## ---- 18-20: doublets globales -------------------------------------------
-
-dbl_cols <- c(singlet = "cornflowerblue", doublet = "brown2")
+## ---- 19: clasificación de doublets (global) -----------------------------
 
 doublet_cells_all <- doublet_cells_all %>%
-  mutate(
-    scDblFinder.class = factor(scDblFinder.class, levels = c("singlet", "doublet")),
-    keep_dbl = factor(if_else(scDblFinder.class == "doublet", "remove", "keep"),
-                       levels = c("keep", "remove"))
-  )
+  mutate(scDblFinder.class = factor(scDblFinder.class, levels = c("singlet", "doublet")))
+
 set.seed(123)
 doublet_cells_ds <- downsample_per_specimen(doublet_cells_all, cap = 10000L)
 
-p_dbl_keep <- ggplot(doublet_cells_ds, aes(nCount_RNA, nFeature_RNA, color = keep_dbl)) +
-  geom_point(size = 0.6, alpha = 0.6) +
-  scale_x_log10() + scale_y_log10() +
-  scale_qc_keep() +
-  ggtitle("Doublets — keep vs remove (global, scDblFinder)") +
-  labs(x = "nCount_RNA (log10)", y = "nFeature_RNA (log10)") +
-  base_theme
-save_plot_png(p_dbl_keep, snakemake@output[["scatter_doublets_keep"]], width = 6.8, height = 6.2)
+dbl_cols <- c(singlet = "cornflowerblue", doublet = "brown2")
 
 p_dbl_class <- ggplot(doublet_cells_ds, aes(nCount_RNA, nFeature_RNA, color = scDblFinder.class)) +
   geom_point(size = 0.6, alpha = 0.6) +
@@ -339,11 +239,3 @@ p_dbl_class <- ggplot(doublet_cells_ds, aes(nCount_RNA, nFeature_RNA, color = sc
   labs(x = "nCount_RNA (log10)", y = "nFeature_RNA (log10)") +
   base_theme
 save_plot_png(p_dbl_class, snakemake@output[["scatter_doublets_class"]], width = 6.8, height = 6.2)
-
-p_dbl_score <- ggplot(doublet_cells_all, aes(x = scDblFinder.class, y = scDblFinder.score)) +
-  geom_violin(fill = "grey85", colour = "black", scale = "width") +
-  geom_boxplot(width = 0.12, outlier.size = 0.2, alpha = 0.8) +
-  ggtitle("scDblFinder.score por clase (global)") +
-  labs(x = "", y = "scDblFinder.score") +
-  base_theme
-save_plot_png(p_dbl_score, snakemake@output[["violin_doublet_score"]], width = 6, height = 6)

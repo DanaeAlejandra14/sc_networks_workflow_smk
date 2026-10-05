@@ -6,7 +6,6 @@ import pandas as pd
 import anndata as ad
 import celltypist
 
-
 def pick_final_labels(pred, use_majority_voting):
     labs = pred.predicted_labels
     if isinstance(labs, pd.DataFrame):

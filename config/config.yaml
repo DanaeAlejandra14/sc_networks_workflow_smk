@@ -33,4 +33,19 @@ phenotype:
     ceradsc_control: [3, 4]
     cogdx_control: [1]
     cogdx_ad_symptomatic: [4, 5]
-    cogdx_mci: [2, 3]  
+    cogdx_mci: [2, 3]
+  categories:
+    - "AD-NC_SYM"
+    - "AD-NC_ASYM"
+    - "MCI"
+    - "control"
+
+cell_type:
+  selected:
+    - "Excitatory Neurons"
+    - "Oligodendrocytes"
+    - "Inhibitory Neurons"
+    - "Astrocyte"
+    - "Endothelial"
+    - "OPCs"
+    - "Microglia"

@@ -1,42 +1,60 @@
 log <- file(snakemake@log[[1]], open = "wt")
-sink(log)
-sink(log, type = "message")
+sink(log); sink(log, type = "message")
 
-library(tidyverse)
-library(Seurat)
-library(harmony)
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(Seurat)
+  library(harmony)
+  library(patchwork)
+})
 
-merged_path <- snakemake@input[[1]]
-output_path <- snakemake@output[[1]]
+phenotype_wc <- snakemake@wildcards[["phenotype"]]
+cell_type_wc <- snakemake@wildcards[["cell_type"]]
 
-message("Cargando objeto fusionado: ", merged_path)
+merged_path <- snakemake@input[["merged"]]
+output_path <- snakemake@output[["integrated"]]
+plot_path   <- snakemake@output[["umap_plot"]]
+
 obj <- readRDS(merged_path)
 
-message("Numero de celulas totales: ", ncol(obj))
-message("Numero de individuos (individualID) distintos: ", length(unique(obj$individualID)))
+message("Phenotype: ", phenotype_wc, " | Cell type: ", cell_type_wc)
+message("Celulas: ", ncol(obj), " | Individuos: ", length(unique(obj$individualID)))
+
+# ---- ANTES: PCA normal (sin corregir nada) ----
+obj <- FindVariableFeatures(obj)
+obj <- ScaleData(obj)
+obj <- RunPCA(obj)
+obj <- RunUMAP(obj, reduction = "pca", dims = 1:30, reduction.name = "umap_before")
 
 if (length(unique(obj$individualID)) < 2) {
-  message("ADVERTENCIA: solo hay 1 individuo en esta combinacion phenotype x cell_type. ",
-          "Se omite Harmony (no hay variacion inter-individuo que corregir) y se usa PCA directamente.")
-  obj <- FindVariableFeatures(obj)
-  obj <- ScaleData(obj)
-  obj <- RunPCA(obj)
+  message("ADVERTENCIA: solo hay 1 individuo. Se omite Harmony.")
   obj$harmony_skipped <- TRUE
+  obj[["umap_after"]] <- obj[["umap_before"]]  # no hay "despues" real que mostrar
 } else {
-  obj <- FindVariableFeatures(obj)
-  obj <- ScaleData(obj)
-  obj <- RunPCA(obj)
-
   message("Ejecutando integracion con Harmony, agrupando por individualID...")
   obj <- RunHarmony(obj, group.by.vars = "individualID")
-  obj <- RunUMAP(obj, reduction = "harmony", dims = 1:30)
+  obj <- RunUMAP(obj, reduction = "harmony", dims = 1:30, reduction.name = "umap_after")
   obj$harmony_skipped <- FALSE
 }
+
+# ---- Plot antes/despues ----
+p_antes <- DimPlot(obj, reduction = "umap_before", group.by = "individualID") +
+  ggtitle(paste0("ANTES (PCA)\n", phenotype_wc, " | ", cell_type_wc)) +
+  theme(legend.position = "none")
+
+p_despues <- DimPlot(obj, reduction = "umap_after", group.by = "individualID") +
+  ggtitle(paste0("DESPUES (Harmony)\n", phenotype_wc, " | ", cell_type_wc)) +
+  theme(legend.position = "none")
+
+p_final <- p_antes | p_despues
+
+dir.create(dirname(plot_path), recursive = TRUE, showWarnings = FALSE)
+ggsave(plot_path, p_final, width = 12, height = 6, dpi = 150, bg = "white")
 
 dir.create(dirname(output_path), recursive = TRUE, showWarnings = FALSE)
 saveRDS(obj, output_path, compress = "gzip")
 
-message("Objeto integrado guardado en: ", output_path)
+message("Objeto guardado en: ", output_path)
+message("Plot guardado en: ", plot_path)
 
-sink(type = "message")
-sink()
+sink(type = "message"); sink()

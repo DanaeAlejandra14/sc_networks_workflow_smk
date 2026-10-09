@@ -49,3 +49,14 @@ cell_type:
     - "Endothelial"
     - "OPCs"
     - "Microglia"
+
+#Super cell
+
+supercell:
+  gammas: [10, 20]
+  k_knn: 5
+  n_pc: 30
+  do_approx: false
+  approx_n: 0
+  seed: 42
+  reduction: "harmony"

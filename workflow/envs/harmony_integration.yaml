@@ -7,3 +7,4 @@ dependencies:
   - r-seurat=5.0
   - r-tidyverse=2.0
   - r-harmony
+  - r-patchwork

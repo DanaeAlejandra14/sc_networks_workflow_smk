@@ -16,11 +16,13 @@ configfile: "config/config.yaml"
 # ","-> desempacking, para que quede como lista y no como tupla
 PHENOTYPES = config["phenotype"]["categories"]
 CELL_TYPES = config["cell_type"]["selected"]
+GAMMAS = [str(g) for g in config["supercell"]["gammas"]]
 
 wildcard_constraints:
     library_batch=r"[A-Za-z0-9_\-]+",
     phenotype=r"[^/]+",
     cell_type=r"[^/]+",
+    gamma=r"\d+",
 
 
 # una secuencia de uno o más caracteres, donde cada uno es letra, número, guion bajo o guion medio — nada más
@@ -45,10 +47,16 @@ rule all:
             phenotype=PHENOTYPES,
             cell_type=CELL_TYPES,
         ),
+        expand(
+            "results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}.rds",
+            phenotype=PHENOTYPES,
+            cell_type=CELL_TYPES,
+            gamma=GAMMAS,
+        ),
+
+
 # La regla principal que hace el demultiplexing , toma cada archivo de ibreria y usando el scriot de
 # R hace el demultiplexing y genera un rds por specimenID
-
-
 rule demultiplex_batch:
     input:
         matrix="data/{library_batch}.matrix.mtx.gz",
@@ -250,14 +258,15 @@ rule run_celltypist:
         "logs/run_celltypist/run_celltypist.log",
     conda:
         "envs/celltypist_env.yaml"
-    shell:
-        "$CONDA_PREFIX/bin/python workflow/scripts/8_run_celltypist.py "
-        "--h5ad {input.h5ad} "
-        "--model {params.model} "
-        "--majority-voting {params.majority_voting} "
-        "--min-prob {params.min_prob} "
-        "--out {output.predictions} "
-        "> {log} 2>&1"
+    shell: #identar bien y ponerle comillas y /
+            "$CONDA_PREFIX/bin/python workflow/scripts/8_run_celltypist.py "
+            "--h5ad {input.h5ad} "
+            "--model {params.model} "
+            "--majority-voting {params.majority_voting} "
+            "--min-prob {params.min_prob} "
+            "--out {output.predictions} "
+            "> {log} 2>&1"
+    
 
 
 rule merge_celltypist_back:
@@ -293,6 +302,7 @@ rule plot_combined_umap:
     script:
         "scripts/9.1_diagnostics_and_umap.R"
 
+#SPLITS
 rule split_by_phenotype:
     input:
         annotated_dirs=expand(
@@ -344,7 +354,8 @@ rule integrate_phenotype_celltype:
     input:
         merged="results/phenotype/{phenotype}/{cell_type}/merged.rds",
     output:
-        "results/phenotype/{phenotype}/{cell_type}/integrated.rds",
+        integrated="results/phenotype/{phenotype}/{cell_type}/integrated.rds",
+        umap_plot="results/phenotype/{phenotype}/{cell_type}/umap_before_after.png",
     log:
         "logs/integrate_phenotype_celltype/{phenotype}_{cell_type}.log",
     conda:
@@ -354,15 +365,43 @@ rule integrate_phenotype_celltype:
         "scripts/12_integrate_phenotype_celltype.R"
 
 #Super cell 
+rule build_supercell:
+    input:
+        integrated="results/phenotype/{phenotype}/{cell_type}/integrated.rds",
+    output:
+        "results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}.rds",
+        summary = "results/supercell/{phenotype}/{cell_type}/summary_gamma{gamma}.csv",
+    params:
+        k_knn     = config["supercell"]["k_knn"],
+        n_pc      = config["supercell"]["n_pc"],
+        do_approx = config["supercell"]["do_approx"],
+        approx_n  = config["supercell"]["approx_n"],
+        seed      = config["supercell"]["seed"],
+        reduction = config["supercell"]["reduction"],
+    log:
+        "logs/build_supercell/{phenotype}_{cell_type}_gamma{gamma}.log",
+    conda:
+        "envs/supercell.yaml"
+    threads: 2
+    script:
+        "scripts/13_build_supercell.R"
 
-
-
-
-
-
-
-
-
+rule aggregate_supercell_summary:
+    input:
+        expand(
+            "results/supercell/{phenotype}/{cell_type}/summary_gamma{gamma}.csv",
+            phenotype=PHENOTYPES,
+            cell_type=CELL_TYPES,
+            gamma=GAMMAS,
+        ),
+    output:
+        "results/supercell/summary_all_gammas.csv",
+    log:
+        "logs/aggregate_supercell_summary/aggregate_supercell_summary.log",
+    conda:
+        "envs/supercell.yaml"
+    script:
+        "scripts/13.1_aggregate_supercell_summary.R"
 
 
 

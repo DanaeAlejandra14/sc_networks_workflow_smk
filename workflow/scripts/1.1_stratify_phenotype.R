@@ -3,11 +3,15 @@ sink(log); sink(log, type = "message")
 
 library(tidyverse)
 
-clinical_csv <- snakemake@config[["phenotype"]][["clinical_csv"]]
+clinical_csv     <- snakemake@config[["phenotype"]][["clinical_csv"]]
+biospecimen_csv  <- snakemake@input[["biospecimen"]]
 th <- snakemake@config[["phenotype"]][["thresholds"]]
 
 message("Leyendo datos clinicos: ", clinical_csv)
 clinical <- read_csv(clinical_csv, show_col_types = FALSE)
+
+message("Leyendo biospecimen: ", biospecimen_csv)
+biospecimen <- read_csv(biospecimen_csv, show_col_types = FALSE)
 
 clinical <- clinical %>%
   mutate(phenotype_label = case_when(
@@ -18,12 +22,20 @@ clinical <- clinical %>%
     TRUE ~ NA_character_
   ))
 
-out <- clinical %>% select(individualID, phenotype_label)
+sc_individuals <- biospecimen %>%
+  filter(assay == "scrnaSeq", is.na(exclude) | exclude != TRUE) %>%
+  distinct(individualID) %>%
+  pull(individualID)
 
-message("Distribucion de fenotipos:")
+out <- clinical %>%
+  filter(individualID %in% sc_individuals, !is.na(phenotype_label)) %>%
+  select(individualID, phenotype_label, msex, educ, pmi, braaksc,
+         apoe_genotype, ceradsc, cogdx, dcfdx_lv)
+
+message("Distribucion de fenotipos (solo sc-nucleus):")
 message(paste(capture.output(print(table(out$phenotype_label, useNA = "ifany"))), collapse = "\n"))
 
 write_csv(out, snakemake@output[[1]])
-message("Tabla de fenotipos guardada: ", nrow(out), " individuos")
+message("Tabla final guardada: ", nrow(out), " individuos")
 
 sink(type = "message"); sink()

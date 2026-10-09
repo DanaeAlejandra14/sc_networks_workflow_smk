@@ -1,0 +1,21 @@
+name: supercell
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - r-base
+  - r-seurat
+  - r-matrix
+  - r-matrixstats
+  - r-optparse
+  - r-remotes
+  - r-igraph
+  - r-rann
+  - r-weightedcluster
+  - r-corpcor
+  - r-weights
+  - r-hmisc
+  - r-plyr
+  - r-irlba
+  - r-patchwork
+  - r-ggplot2

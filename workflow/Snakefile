@@ -77,6 +77,9 @@ rule demultiplex_batch:
 #Agregar mi metadata de paciente
 
 rule stratify_phenotype:
+    input:
+        biospecimen="resources/ROSMAP_biospecimen_metadata.csv",
+        clinical=config["phenotype"]["clinical_csv"],
     output:
         "resources/individual_phenotype_labels.csv",
     params:
@@ -364,7 +367,7 @@ rule integrate_phenotype_celltype:
     script:
         "scripts/12_integrate_phenotype_celltype.R"
 
-#Super cell 
+#Super cell  1-build with different gamma 
 rule build_supercell:
     input:
         integrated="results/phenotype/{phenotype}/{cell_type}/integrated.rds",
@@ -386,6 +389,7 @@ rule build_supercell:
     script:
         "scripts/13_build_supercell.R"
 
+
 rule aggregate_supercell_summary:
     input:
         expand(
@@ -403,36 +407,16 @@ rule aggregate_supercell_summary:
     script:
         "scripts/13.1_aggregate_supercell_summary.R"
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#Super cell 
-
-
-
-
-#ARACNE 
+rule compute_supercell_expression:
+    input:
+        integrated="results/phenotype/{phenotype}/{cell_type}/integrated.rds",
+        sc_rds="results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}.rds",
+    output:
+        "results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}_GE.rds",
+    log:
+        "logs/compute_supercell_expression/{phenotype}_{cell_type}_gamma{gamma}.log",
+    conda:
+        "envs/supercell.yaml"
+    threads: 2
+    script:
+        "scripts/13.2_compute_supercell_expression.R"

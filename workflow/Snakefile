@@ -7,9 +7,7 @@ from snakemake.shell import shell
 shell.executable("/bin/bash")
 min_version("9.0")
 
-
 configfile: "config/config.yaml"
-
 
 (LIBRARY_BATCHES,) = glob_wildcards("data/{library_batch}.matrix.mtx.gz")
 # global_wildcards: mira que archivos existen en mi data y extrae los valores que encajan con el wildcard
@@ -23,7 +21,6 @@ wildcard_constraints:
     phenotype=r"[^/]+",
     cell_type=r"[^/]+",
     gamma=r"\d+",
-
 
 # una secuencia de uno o más caracteres, donde cada uno es letra, número, guion bajo o guion medio — nada más
 rule all:
@@ -52,6 +49,12 @@ rule all:
             phenotype=PHENOTYPES,
             cell_type=CELL_TYPES,
             gamma=GAMMAS,
+        ),
+        expand(
+            "results/aracne/{phenotype}/{cell_type}/gamma{gamma}/network.txt",
+            phenotype=config["aracne"]["targets"]["phenotypes"],
+            cell_type=config["aracne"]["targets"]["cell_types"],
+            gamma=config["aracne"]["targets"]["gammas"],
         ),
 
 
@@ -421,7 +424,31 @@ rule compute_supercell_expression:
     script:
         "scripts/13.2_compute_supercell_expression.R"
 
+rule plot_supercell_qc:
+    input:
+        integrated="results/phenotype/{phenotype}/{cell_type}/integrated.rds",
+        sc_rds="results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}.rds",
+    output:
+        directory("results/supercell_plots/{phenotype}/{cell_type}/gamma{gamma}"),
+    params:
+        individual_col=config["supercell_plots"]["individual_col"],
+        batch_col=config["supercell_plots"]["batch_col"],
+    wildcard_constraints:
+        gamma=r"\d+",
+    log:
+        "logs/plot_supercell_qc/{phenotype}_{cell_type}_gamma{gamma}.log",
+    conda:
+        "envs/supercell.yaml"
+    threads: 1
+    script:
+        "scripts/13.4_supercell_plots.R"
 
+
+
+
+
+
+#Exportar matrices para ARACNE
 rule export_aracne_matrix:
     input:
         ge="results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}_GE.rds",

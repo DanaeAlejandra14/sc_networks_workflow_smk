@@ -1,0 +1,48 @@
+digraph snakemake_dag {
+    graph[bgcolor=white, margin=0];
+    node[shape=box, style=rounded, fontname=sans,                 fontsize=10, penwidth=2];
+    edge[penwidth=2, color=grey];
+	0[label = "aracne_consolidate", color = "0.10 0.6 0.85", style="rounded"];
+	1[label = "aracne_threshold", color = "0.13 0.6 0.85", style="rounded"];
+	2[label = "export_aracne_matrix", color = "0.31 0.6 0.85", style="rounded"];
+	3[label = "compute_supercell_expression", color = "0.23 0.6 0.85", style="rounded"];
+	4[label = "integrate_phenotype_celltype", color = "0.36 0.6 0.85", style="rounded"];
+	5[label = "merge_phenotype_celltype", color = "0.41 0.6 0.85", style="rounded"];
+	6[label = "split_by_cell_type", color = "0.59 0.6 0.85", style="rounded"];
+	7[label = "split_by_phenotype", color = "0.62 0.6 0.85", style="rounded"];
+	8[label = "merge_celltypist_back", color = "0.38 0.6 0.85", style="rounded"];
+	9[label = "annotate_reference_batch", color = "0.05 0.6 0.85", style="rounded"];
+	10[label = "normalize_batch", color = "0.44 0.6 0.85", style="rounded"];
+	11[label = "doublet_detection", color = "0.28 0.6 0.85", style="rounded"];
+	12[label = "qc_batch", color = "0.54 0.6 0.85", style="rounded"];
+	13[label = "attach_and_filter_phenotype", color = "0.15 0.6 0.85", style="rounded"];
+	14[label = "demultiplex_batch", color = "0.26 0.6 0.85", style="rounded"];
+	15[label = "stratify_phenotype", color = "0.64 0.6 0.85", style="rounded"];
+	16[label = "run_celltypist", color = "0.56 0.6 0.85", style="rounded"];
+	17[label = "export_unassigned", color = "0.33 0.6 0.85", style="rounded"];
+	18[label = "build_supercell", color = "0.21 0.6 0.85", style="rounded"];
+	19[label = "aracne_bootstrap", color = "0.08 0.6 0.85", style="rounded"];
+	19 -> 0
+	1 -> 0
+	2 -> 1
+	3 -> 2
+	4 -> 3
+	18 -> 3
+	5 -> 4
+	6 -> 5
+	7 -> 6
+	8 -> 7
+	16 -> 8
+	9 -> 8
+	10 -> 9
+	11 -> 10
+	12 -> 11
+	13 -> 12
+	15 -> 13
+	14 -> 13
+	17 -> 16
+	9 -> 17
+	4 -> 18
+	2 -> 19
+	1 -> 19
+}            

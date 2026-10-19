@@ -61,21 +61,25 @@ supercell:
   seed: 42
   reduction: "harmony"
 
+supercell_plots:
+  individual_col: "individualID"
+  batch_col: "libraryBatch"
+
 aracne:
-  # ── Red ────────────────────────────────────────────────────
+  # Red 
   pvalue: "1E-8"                 # umbral de informacion mutua (threshold)
 
-  # ── Matriz de entrada ──────────────────────────────────────
+  #  Matriz de entrada 
   matrix:
     normalize: "none"         # "log_cpm" o "none"
     min_frac_expressed: 0.1      # genes expresados en >= 10% de las metacelulas
 
-  # ── Bootstraps ─────────────────────────────────────────────
+  # Bootstraps 
   bootstrap:
-    n_boot: 3                    # piloto; subir a 100 para la corrida final
+    n_boot: 3                   # piloto; subir a 100 para la corrida final
     threads: 4                   # hilos por bootstrap
 
-  # ── Memoria por paso (GB) ──────────────────────────────────
+  # Memoria por paso (GB)
   # Se usa para Java (-Xmx) y para que Snakemake calcule cuantos
   # bootstraps caben en paralelo si lanzas con --resources mem_gb=N.
   # Si ves OutOfMemoryError en los logs de bootstrap, sube bootstrap_gb.
@@ -83,3 +87,10 @@ aracne:
     threshold_gb: 5
     bootstrap_gb: 8
     consolidate_gb: 5
+ # ── Corrida final (lo que pide `rule all`) ─────────────────
+  # Define QUE redes se construyen cuando lanzas el pipeline sin objetivos.
+  # Local: solo astrocitos, gamma 10. Servidor: ampliar las listas.
+  targets:
+    phenotypes: ["AD-NC_ASYM", "AD-NC_SYM", "MCI", "control"]
+    cell_types: ["Astrocyte"]
+    gammas: [10]

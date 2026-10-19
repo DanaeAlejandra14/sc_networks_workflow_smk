@@ -6,6 +6,7 @@ suppressPackageStartupMessages({
   library(Matrix)
 })
 
+# Solo lo instalamos si no esta disponible en el ambiente, para evitar problemas de compatibilidad con la version de R
 if (!requireNamespace("SuperCell", quietly = TRUE)) {
   message("SuperCell no esta instalado en este ambiente, instalando desde GitHub...")
   if (!requireNamespace("remotes", quietly = TRUE)) {
@@ -46,8 +47,10 @@ reduction_use <- if (reduction_pref %in% Reductions(obj)) {
   "pca"
 }
 
-n_pc_use  <- min(n_pc, ncol(Embeddings(obj, reduction = reduction_use)))
+n_pc_use  <- min(n_pc, ncol(Embeddings(obj, reduction = reduction_use))) 
+#numero de PCs a usar para construir el grafo de metacelulas, no puede ser mayor al numero de PCs disponibles en el objeto Seurat
 embedding <- Embeddings(obj, reduction = reduction_use)[, 1:n_pc_use]
+# Crea el objeto SuperCell a partir de la reduccion de dimension EMBEDINGS  y el parametro gamma
 
 message("Usando reduccion: ", reduction_use, " | dimensiones: ", n_pc_use)
 message("Construyendo metacelulas con gamma = ", gamma_wc, "...")

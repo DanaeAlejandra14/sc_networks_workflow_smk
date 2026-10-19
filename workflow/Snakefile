@@ -420,3 +420,125 @@ rule compute_supercell_expression:
     threads: 2
     script:
         "scripts/13.2_compute_supercell_expression.R"
+
+
+rule export_aracne_matrix:
+    input:
+        ge="results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}_GE.rds",
+    output:
+        matrix="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/scmatrix.tsv",
+        centroids="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/centroids.txt",
+    params:
+        normalize=config["aracne"]["matrix"]["normalize"],
+        min_frac_expressed=config["aracne"]["matrix"]["min_frac_expressed"],
+    log:
+        "logs/export_aracne_matrix/{phenotype}_{cell_type}_gamma{gamma}.log",
+    conda:
+        "envs/supercell.yaml"
+    threads: 1
+    script:
+        "scripts/14_export_aracne_matrices.R"
+
+#ARACNE
+
+ARACNE      = "resources/tools/ARACNe-AP/dist/aracne.jar"
+PVALUE      = config["aracne"]["pvalue"]
+N_BOOT      = config["aracne"]["bootstrap"]["n_boot"]
+NET_THREADS = config["aracne"]["bootstrap"]["threads"]
+NODPI       = ""    # DPI activo (comportamiento por defecto de ARACNe)
+
+
+rule build_aracne:
+    output:
+        jar="resources/tools/ARACNe-AP/dist/aracne.jar",
+    log:
+        "logs/build_aracne/build.log",
+    conda:
+        "envs/aracne.yaml"
+    shell:
+        """
+        exec > {log} 2>&1
+        mkdir -p resources/tools
+        cd resources/tools
+        [ -d ARACNe-AP ] || git clone https://github.com/califano-lab/ARACNe-AP.git
+        cd ARACNe-AP
+        ant main
+        """
+ 
+rule aracne_threshold: # Calculo de la MI para ser significativa
+    input:
+        expr="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/scmatrix.tsv",
+        tfs="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/centroids.txt",
+    output:
+        touch("results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work/.threshold_done"),
+    params:
+        work_dir="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work",
+    resources:
+        mem_gb=config["aracne"]["memory"]["threshold_gb"],
+    log:
+        "logs/aracne/{phenotype}_{cell_type}_gamma{gamma}.threshold.log",
+    conda:
+        "envs/aracne.yaml"
+    shell:
+        """
+        mkdir -p {params.work_dir}
+        java -Xmx{resources.mem_gb}G -jar {ARACNE} \
+          -e {input.expr} -o {params.work_dir} --tfs {input.tfs} \
+          --pvalue {PVALUE} --seed 1 --calculateThreshold {NODPI} \
+          &> {log}
+        """
+
+
+rule aracne_bootstrap: #n_boot redes
+    input:
+        expr="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/scmatrix.tsv",
+        tfs="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/centroids.txt",
+        threshold="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work/.threshold_done",
+    output:
+        touch("results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work/bt_{rep}.done"),
+    wildcard_constraints:
+        rep=r"\d+",
+    params:
+        work_dir="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work",
+    threads: NET_THREADS
+    resources:
+        mem_gb=config["aracne"]["memory"]["bootstrap_gb"],
+    log:
+        "logs/aracne/{phenotype}_{cell_type}_gamma{gamma}.bt_{rep}.log",
+    conda:
+        "envs/aracne.yaml"
+    shell:
+        """
+        java -Xmx{resources.mem_gb}G -jar {ARACNE} \
+          -e {input.expr} -o {params.work_dir} --tfs {input.tfs} \
+          --pvalue {PVALUE} --threads {threads} --seed {wildcards.rep} {NODPI} \
+          &> {log}
+        """
+
+
+def aracne_boots(wc):
+    return expand(
+        "results/aracne/{p}/{c}/gamma{g}/work/bt_{rep}.done",
+        p=wc.phenotype, c=wc.cell_type, g=wc.gamma, rep=range(1, N_BOOT + 1),
+    )
+
+
+rule aracne_consolidate: #combina las redes en una sola
+    input:
+        threshold="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work/.threshold_done",
+        boots=aracne_boots,
+    output:
+        "results/aracne/{phenotype}/{cell_type}/gamma{gamma}/network.txt",
+    params:
+        work_dir="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work",
+    resources:
+        mem_gb=config["aracne"]["memory"]["consolidate_gb"],
+    log:
+        "logs/aracne/{phenotype}_{cell_type}_gamma{gamma}.consolidate.log",
+    conda:
+        "envs/aracne.yaml"
+    shell:
+        """
+        java -Xmx{resources.mem_gb}G -jar {ARACNE} -o {params.work_dir} --consolidate &> {log}
+        mv {params.work_dir}/network.txt {output}
+        """

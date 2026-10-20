@@ -18,32 +18,32 @@ plot_path   <- snakemake@output[["umap_plot"]]
 obj <- readRDS(merged_path)
 
 message("Phenotype: ", phenotype_wc, " | Cell type: ", cell_type_wc)
-message("Celulas: ", ncol(obj), " | Individuos: ", length(unique(obj$individualID)))
+message("Cells: ", ncol(obj), " | Individuals: ", length(unique(obj$individualID)))
 
-# ---- ANTES: PCA normal (sin corregir nada) ----
+# iNTEGRATION 
 obj <- FindVariableFeatures(obj)
 obj <- ScaleData(obj)
 obj <- RunPCA(obj)
 obj <- RunUMAP(obj, reduction = "pca", dims = 1:30, reduction.name = "umap_before")
 
 if (length(unique(obj$individualID)) < 2) {
-  message("ADVERTENCIA: solo hay 1 individuo. Se omite Harmony.")
+  message("WARNING: There is only 1 individual. Harmony is omitted.")
   obj$harmony_skipped <- TRUE
-  obj[["umap_after"]] <- obj[["umap_before"]]  # no hay "despues" real que mostrar
+  obj[["umap_after"]] <- obj[["umap_before"]]  
 } else {
-  message("Ejecutando integracion con Harmony, agrupando por individualID...")
+  message("Executing integration with Harmony, grouping by individualID...")
   obj <- RunHarmony(obj, group.by.vars = "individualID")
   obj <- RunUMAP(obj, reduction = "harmony", dims = 1:30, reduction.name = "umap_after")
   obj$harmony_skipped <- FALSE
 }
 
-# ---- Plot antes/despues ----
+#Plots before and after
 p_antes <- DimPlot(obj, reduction = "umap_before", group.by = "individualID") +
-  ggtitle(paste0("ANTES (PCA)\n", phenotype_wc, " | ", cell_type_wc)) +
+  ggtitle(paste0("Before (PCA)\n", phenotype_wc, " | ", cell_type_wc)) +
   theme(legend.position = "none")
 
 p_despues <- DimPlot(obj, reduction = "umap_after", group.by = "individualID") +
-  ggtitle(paste0("DESPUES (Harmony)\n", phenotype_wc, " | ", cell_type_wc)) +
+  ggtitle(paste0("After (Harmony)\n", phenotype_wc, " | ", cell_type_wc)) +
   theme(legend.position = "none")
 
 p_final <- p_antes | p_despues
@@ -54,7 +54,7 @@ ggsave(plot_path, p_final, width = 12, height = 6, dpi = 150, bg = "white")
 dir.create(dirname(output_path), recursive = TRUE, showWarnings = FALSE)
 saveRDS(obj, output_path, compress = "gzip")
 
-message("Objeto guardado en: ", output_path)
-message("Plot guardado en: ", plot_path)
+message(" Save in ", output_path)
+message("Plot save in: ", plot_path)
 
 sink(type = "message"); sink()

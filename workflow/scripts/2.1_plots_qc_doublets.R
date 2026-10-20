@@ -7,8 +7,7 @@ suppressPackageStartupMessages({
   library(cowplot)
 })
 
-## ---- 1. Agregar QC + doublets en una sola tabla ----------------------
-
+## 1. Add QC + doublets into a single table
 qc_files      <- unlist(snakemake@input[["qc"]])
 doublet_files <- unlist(snakemake@input[["doublets"]])
 summary_path  <- snakemake@output[["summary"]]
@@ -38,7 +37,7 @@ write_csv(df, summary_path)
 message("Combined QC + doublet summary written to: ", summary_path)
 message("Total specimens: ", nrow(df), " across ", n_distinct(df$library_batch), " library batch(es)")
 
-## ---- 2. Plots globales (todas las muestras/batches juntas) -----------
+## 2. Global plots (all samples/batches combined)
 
 base_theme <- theme_cowplot() +
   theme(
@@ -57,7 +56,7 @@ p_pct_kept <- df %>%
   ggplot(aes(x = reorder(specimenID, pct_cells_kept), y = pct_cells_kept, fill = library_batch)) +
   geom_col(colour = "black") +
   coord_flip() +
-  ggtitle("Porcentaje de células retenidas por specimen (QC)") +
+  ggtitle("Percentage of cells retained by specimen (QC)") +
   labs(x = "specimen", y = "pct_cells_kept (%)", fill = "library_batch") +
   base_theme
 save_plot_png(p_pct_kept, snakemake@output[["pct_kept"]], height = bar_height)
@@ -67,7 +66,7 @@ p_pct_doublet <- df %>%
   ggplot(aes(x = reorder(specimenID, pct_doublet), y = pct_doublet, fill = library_batch)) +
   geom_col(colour = "black") +
   coord_flip() +
-  ggtitle("Porcentaje de doublets por specimen") +
+  ggtitle("Percentage of doublets by specimen") +
   labs(x = "specimen", y = "pct_doublet (%)", fill = "library_batch") +
   base_theme
 save_plot_png(p_pct_doublet, snakemake@output[["pct_doublet"]], height = bar_height)
@@ -80,12 +79,12 @@ p_cells_before_after <- df %>%
   ggplot(aes(x = reorder(specimenID, cells), y = cells, fill = stage)) +
   geom_col(position = "dodge", colour = "black") +
   coord_flip() +
-  ggtitle("Células por specimen: antes vs después del filtro QC") +
-  labs(x = "specimen", y = "n células", fill = "etapa") +
+  ggtitle("CCells by specimen: before vs after QC filter") +
+  labs(x = "specimen", y = "n cells", fill = "stage") +
   base_theme
 save_plot_png(p_cells_before_after, snakemake@output[["cells_before_after"]], height = bar_height + 1)
 
-## ---- 3. PDF combinado, 2 plots por página -----------------------------
+##  3. PDF combinado, 2 plots por página 
 
 all_plots <- list(p_pct_kept, p_pct_doublet, p_cells_before_after)
 
@@ -108,7 +107,7 @@ message("Total specimens plotted: ", nrow(df))
 sink(type = "message"); sink()
 
 
-## ---- 2b. Cargar datos por CÉLULA (todos los specimens juntos) --------
+##  2b. downsampled per-cell QC + doublet plots (for scatter plots, etc.) 
 
 qc_cell_files      <- unlist(snakemake@input[["qc_cells"]])
 doublet_cell_files <- unlist(snakemake@input[["doublet_cells"]])
@@ -146,8 +145,7 @@ qc_cells_ds <- downsample_per_specimen(qc_cells_all, cap = 10000L)
 qc_cols <- c(keep = "cornflowerblue", remove = "brown2")
 scale_qc_keep <- function(name = "") scale_color_manual(values = qc_cols, drop = FALSE, name = name)
 
-## ---- 08-10: Histogramas globales con línea de corte -------------------
-
+## 08-10: Histogramas globales con línea de corte 
 p_hist_mt <- ggplot(qc_cells_all, aes(x = percent_mt + 1)) +
   geom_histogram(binwidth = 0.25, fill = "cornflowerblue", colour = "black") +
   geom_vline(xintercept = mt_max + 1, linetype = 2, color = "red", linewidth = 0.8) +
@@ -174,7 +172,7 @@ p_hist_nc <- ggplot(qc_cells_all, aes(nCount_RNA)) +
   base_theme
 save_plot_png(p_hist_nc, snakemake@output[["hist_ncount"]])
 
-## ---- 11: scatter gradiente mitocondrial (global) -----------------------
+##  11: scatter gradiente mitocondrial (global) 
 
 p_mito_grad <- qc_cells_ds %>%
   arrange(percent_mt) %>%
@@ -188,7 +186,7 @@ p_mito_grad <- qc_cells_ds %>%
   base_theme
 save_plot_png(p_mito_grad, snakemake@output[["scatter_mito_gradient"]], width = 6.8, height = 6.2)
 
-## ---- 12-14: scatters keep/remove (global) -------------------------------
+## 12-14: scatters keep/remove (global) 
 
 p_keep_cf <- ggplot(qc_cells_ds, aes(nCount_RNA, nFeature_RNA, color = keep_cf)) +
   geom_point(size = 0.6, alpha = 0.6) +
@@ -221,7 +219,7 @@ p_keep_all <- ggplot(qc_cells_ds, aes(nCount_RNA, nFeature_RNA, color = keep_all
   base_theme
 save_plot_png(p_keep_all, snakemake@output[["scatter_keep_all"]], width = 6.8, height = 6.2)
 
-## ---- 19: clasificación de doublets (global) -----------------------------
+##19: clasificación de doublets (global)
 
 doublet_cells_all <- doublet_cells_all %>%
   mutate(scDblFinder.class = factor(scDblFinder.class, levels = c("singlet", "doublet")))

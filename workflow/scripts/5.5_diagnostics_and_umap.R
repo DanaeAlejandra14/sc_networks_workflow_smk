@@ -10,10 +10,10 @@ max_cells_per_specimen <- 1000
 
 dir.create(diagnostics_dir, recursive = TRUE, showWarnings = FALSE)
 
-message("Cargando specimens de ", length(annotated_dirs), " batch(es)")
+message("Doing diagnostics for ", length(annotated_dirs), " batch(es)")
 
 obj_list  <- list()
-meta_list <- list()  # metadata COMPLETA, antes de downsamplear, para diagnosticos
+meta_list <- list()  # Complete metadata
 
 for (dir in annotated_dirs) {
   library_batch <- basename(dir)
@@ -21,13 +21,13 @@ for (dir in annotated_dirs) {
 
   for (rds_file in rds_files) {
     specimen_id <- tools::file_path_sans_ext(basename(rds_file))
-    message("  Cargando ", library_batch, " / ", specimen_id)
+    message("  Downsampling ", library_batch, " / ", specimen_id)
 
     obj <- readRDS(rds_file)
     obj$specimen_id <- specimen_id
 
-    # Metadata completa ANTES del downsample -- los conteos/porcentajes de
-    # los diagnosticos deben ser exactos, no sobre una muestra
+    # Complete metadata BEFORE downsampling — the counts/percentages for
+    # the diagnoses must be exact, not based on a sample
     key <- paste0(library_batch, "_", specimen_id)
     meta_list[[key]] <- obj@meta.data %>%
       as_tibble() %>%
@@ -44,13 +44,12 @@ for (dir in annotated_dirs) {
   }
 }
 
-message("Total specimens cargados: ", length(obj_list))
+message("Total specimens: ", length(obj_list))
 
-## ---- Diagnosticos de anotacion (sobre la metadata COMPLETA) ------------
-
+## diagnostics of the cell anotation, before and after CellTypist rescue
 all_meta <- bind_rows(meta_list)
 n_total <- nrow(all_meta)
-message("Total de celulas (sin downsample): ", n_total)
+message("Total of cells (with out downsample): ", n_total)
 
 write_csv(all_meta, file.path(diagnostics_dir, "annotation_diagnostics_metadata.csv"))
 
@@ -70,11 +69,11 @@ n_na_before_celltypist <- n_celltypist + n_unassigned
 
 resumen_texto <- tibble(
   metrica = c(
-    "Anotadas por CSV de referencia",
-    "NA del CSV de referencia (antes de CellTypist)",
-    "Rescatadas por CellTypist (sobre el total de NA)",
-    "Rescatadas por CellTypist (sobre el total de celulas)",
-    "Siguen NA despues de CellTypist (unassigned)"
+    "Original anotation (before CellTypist)",
+    "NA of the reference CSV (before CellTypist)",
+    "Annotated by CellTypist (over the NA)",
+    "Annotated by CellTypist (over the total of cells)",
+    "NA after CellTypist (unassigned)"
   ),
   n = c(n_original, n_na_before_celltypist, n_celltypist, n_celltypist, n_unassigned),
   pct = c(
@@ -85,13 +84,13 @@ resumen_texto <- tibble(
     round(100 * n_unassigned / n_total, 2)
   )
 )
-write_csv(resumen_texto, file.path(diagnostics_dir, "01_resumen_origen_anotacion.csv"))
+write_csv(resumen_texto, file.path(diagnostics_dir, "01_summary_origin_annotation.csv.csv"))
 
 p1 <- source_summary %>%
   ggplot(aes(x = annotation_source, y = n, fill = annotation_source)) +
   geom_col() +
   geom_text(aes(label = paste0(n, " (", pct_del_total, "%)")), vjust = -0.3) +
-  labs(x = "annotation_source", y = "Numero de celulas", title = "Origen de la anotacion celular") +
+  labs(x = "annotation_source", y = "Number of cells", title = "Origin of Cell Annotation") +
   theme_minimal() + theme(legend.position = "none")
 ggsave(file.path(diagnostics_dir, "01_origen_anotacion.png"), p1, width = 6, height = 5, dpi = 150)
 
@@ -100,14 +99,14 @@ celltype_summary <- all_meta %>%
   count(cell_type) %>%
   mutate(pct = round(100 * n / sum(n), 2)) %>%
   arrange(desc(n))
-write_csv(celltype_summary, file.path(diagnostics_dir, "02_resumen_cell_type.csv"))
+write_csv(celltype_summary, file.path(diagnostics_dir, "02_cell_type_summary.csv"))
 
 p2 <- celltype_summary %>%
   ggplot(aes(x = reorder(cell_type, n), y = n)) +
   geom_col() +
   geom_text(aes(label = paste0(pct, "%")), hjust = -0.1, size = 3) +
   coord_flip() +
-  labs(x = "cell_type", y = "Numero de celulas", title = "Distribucion de cell_type (todos los individuos)") +
+  labs(x = "cell_type", y = "Number of cells", title = "Distribution of cell_type (all individuals)") +
   theme_minimal()
 ggsave(file.path(diagnostics_dir, "02_cell_type_global.png"), p2, width = 8, height = 6, dpi = 150)
 
@@ -124,8 +123,8 @@ p3 <- celltype_by_specimen %>%
   geom_col() +
   facet_grid(~ phenotype_label, scales = "free_x", space = "free_x") +
   coord_flip() +
-  labs(x = "individualID", y = "% de celulas",
-       title = "Composicion de cell_type por individuo, agrupado por phenotype") +
+  labs(x = "individualID", y = "% of cells",
+       title = "Composition of cell_type by individual, grouped by phenotype") +
   theme_minimal() +
   theme(axis.text.y = element_text(size = 7))
 ggsave(file.path(diagnostics_dir, "03_cell_type_por_specimen_y_phenotype.png"), p3, width = 10, height = 8, dpi = 150)
@@ -141,14 +140,14 @@ write_csv(celltype_by_phenotype, file.path(diagnostics_dir, "04_cell_type_por_ph
 p4 <- celltype_by_phenotype %>%
   ggplot(aes(x = phenotype_label, y = pct_phenotype, fill = cell_type)) +
   geom_col(position = "stack") +
-  labs(x = "phenotype", y = "% de celulas", fill = "cell_type",
-       title = "Composicion de cell_type por phenotype (agregado)") +
+  labs(x = "phenotype", y = "% of cells", fill = "cell_type",
+       title = "Composition of cell_type by phenotype (aggregated)") +
   theme_minimal()
 ggsave(file.path(diagnostics_dir, "04_cell_type_por_phenotype.png"), p4, width = 8, height = 6, dpi = 150)
 
-message("Diagnosticos de anotacion guardados en: ", diagnostics_dir)
+message("Diagnostics of cell annotation saved in: ", diagnostics_dir)
 
-## ---- UMAPs combinados (sobre objetos downsampleados, por rendimiento) --
+## Unambiguous UMAP of all specimens together, colored by cell_type, phenotype and library_batch
 
 gc()
 merged <- merge(obj_list[[1]], y = obj_list[-1], add.cell.ids = names(obj_list))
@@ -161,17 +160,17 @@ merged <- RunPCA(merged, npcs = 30, verbose = FALSE)
 merged <- RunUMAP(merged, dims = 1:30, verbose = FALSE)
 
 p_celltype <- DimPlot(merged, group.by = "cell_type", label = TRUE, repel = TRUE) +
-  NoLegend() + ggtitle("Todos los specimens - cell_type")
+  NoLegend() + ggtitle("All the specimens - cell_type")
 
 p_source <- DimPlot(merged, group.by = "annotation_source") +
-  ggtitle("Todos los specimens - annotation_source")
+  ggtitle("All the specimens - annotation_source")
 
 p_batch <- DimPlot(merged, group.by = "libraryBatch") +
-  ggtitle("Todos los specimens - library_batch (chequeo de batch effect)")
+  ggtitle("All the specimens - library_batch (checking batch effect)")
 
 ggsave(snakemake@output[["umap_celltype"]], p_celltype, width = 8, height = 7, dpi = 150)
 ggsave(snakemake@output[["umap_source"]], p_source, width = 8, height = 7, dpi = 150)
 ggsave(snakemake@output[["umap_batch"]], p_batch, width = 8, height = 7, dpi = 150)
 
-message("UMAPs combinados guardados en results/annotation_plots/")
+message("Combined UMAPs saved in results/annotation_plots/")
 sink(type = "message"); sink()

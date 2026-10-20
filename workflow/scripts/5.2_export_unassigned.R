@@ -3,7 +3,7 @@ sink(log); sink(log, type = "message")
 
 library(tidyverse)
 library(Seurat)
-library(SeuratDisk) #Convertir a h5ad
+library(SeuratDisk) # To convert a H5Seurat object to h5ad format for Python compatibility
 
 annotated_dirs <- unlist(snakemake@input) 
 h5ad_path <- snakemake@output[["h5ad"]]
@@ -12,25 +12,26 @@ dir.create(dirname(h5ad_path), recursive = TRUE, showWarnings = FALSE)
 
 message("Collecting unassigned cells from ", length(annotated_dirs), " batch folder(s)")
 
-unassigned_objs <- list() # es un lopp de batches , no sabemos cuantos batches hay, por eso es una lista, para ir guardando los objetos de cada batch
-##loop anidado para recorrer cada batch y dentro de cada batch recorrer cada rds
+unassigned_objs <- list() # For loop to process each batch and within each batch, process each RDS file
+## another for loop to process each RDS file in the batch folder, extract unassigned cells, rename them with specimen_id prefix, and store them in the unassigned_objs list
 
 for (batch_dir in annotated_dirs) {
   rds_files <- list.files(batch_dir, pattern = "\\.rds$", full.names = TRUE)
 
-#carga cada rds y extrae las células unassigned, las renombra con el prefijo del specimen_id y las guarda en la lista unassigned_objs
+# For loop to process each RDS file in the batch folder, extract unassigned cells, rename them with specimen_id prefix, 
+# and store them in the unassigned_objs list
   for (rds_file in rds_files) {
     specimen_id <- tools::file_path_sans_ext(basename(rds_file))
     obj <- readRDS(rds_file)
     un_cells <- colnames(obj)[is.na(obj$cell_type)]
 
-    if (length(un_cells) > 0) { #algunos specimens pueden no tener células unassignedn
+    if (length(un_cells) > 0) { #some specimens may not have unassigned cells, so we only process those that do
       message("  ", specimen_id, ": ", length(un_cells), " unassigned cell(s)")
 
-      obj_un <- subset(obj, cells = un_cells) #subset de Seurat para extraer las células unassigned
+      obj_un <- subset(obj, cells = un_cells) #subet the Seurat object to only include unassigned cells
       
-      # Prefijo con specimen_id antes de fusionar, para evitar colisiones
-      # de barcodes entre specimens distintos (mismo barcode 10x, distinta célula real)
+      # Prefix the cell barcodes with specimen_id to avoid barcode collisions across different specimens (same 10x barcode, different real cell)
+    
       obj_un <- RenameCells(obj_un, add.cell.id = specimen_id)
       unassigned_objs[[specimen_id]] <- obj_un
     }
@@ -42,22 +43,20 @@ if (length(unassigned_objs) == 0) {
 }
 
 message("Merging unassigned cells into a single object...") 
-merged_unassigned <- if (length(unassigned_objs) == 1) { #se fusionan los objetos en una lista en uno solo 
+merged_unassigned <- if (length(unassigned_objs) == 1) { # the merge function requires at least 2 objects, so if there is only one object, we just take it as is
   unassigned_objs[[1]]
 } else {
   merge(unassigned_objs[[1]], unassigned_objs[-1])
 }
 
-# Join layers los combina en una sola capa de data 
-# Join layers los combina en una sola capa de data 
+# Join layers containing counts and other assays into a single layer to ensure compatibility with SeuratDisk and h5ad export. This is necessary because Seurat v5 uses multiple layers for different assays, while h5ad expects a single layer.
 merged_unassigned[["RNA"]] <- JoinLayers(merged_unassigned[["RNA"]]) 
 message("Total unassigned cells to export: ", ncol(merged_unassigned))
 
-## let see 
 print(sapply(merged_unassigned@meta.data, class))
 saveRDS(merged_unassigned, "results/unassigned_export/merged_debug.rds")
 
-# Convertir Assay5 (Seurat v5) a Assay clásico, compatible con SeuratDisk
+# Convert the RNA assay to the "Assay" class to ensure compatibility with SeuratDisk and h5ad export. This is necessary because Seurat v5 uses a different class for assays, while h5ad expects a specific structure.
 merged_unassigned[["RNA"]] <- as(object = merged_unassigned[["RNA"]], Class = "Assay")
 
 #convertir archivo a h5ad para poder abrirlo en Python

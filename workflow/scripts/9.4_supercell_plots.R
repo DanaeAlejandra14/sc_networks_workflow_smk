@@ -24,7 +24,7 @@ cells <- names(sc$membership)
 stopifnot(all(cells %in% colnames(obj)))
 meta <- obj@meta.data[cells, , drop = FALSE]
 
-# Funciones auxiliares 
+# Auxiliary functions
 has_col <- function(col) {
   ok <- !is.null(col) && col %in% colnames(meta)
   if (!ok) message("Columna ausente en la metadata: ", col)
@@ -49,16 +49,16 @@ grad_plot <- function(file, values, title) {
   })
 }
 
-# 00 Red base (nodo = metacelula, tamano segun numero de celulas)
+# 00 Red base (node ​​= metacell, size based on number of cells)
 save_png("00_network.png", function() {
   supercell_plot(nw, seed = 42,
                  main = paste0("Metacell network, gamma = ", sc$gamma))
 })
 
-# 01 Tamano de metacelulas 
+# 01 Metacell size
 grad_plot("01_size.png", log10(sc$supercell_size), "log10 metacell size (cells)")
 
-# 02-03 Pureza: que tan mezclados estan individuos y batches 
+# 02-03 Purity: the extent to which individuals and batches are mixed
 pur_ind <- NULL; pur_batch <- NULL
 
 if (has_col(individual_col)) {
@@ -77,7 +77,7 @@ if (has_col(batch_col)) {
             "Purity by batch (max proportion)")
 }
 
-# 04 Histogramas resumen
+# 04 Summary histograms
 save_png("04_histograms.png", function() {
   op <- par(mfrow = c(1, 3)); on.exit(par(op))
   hist(sc$supercell_size, breaks = 20, main = "Metacell size", xlab = "cells")

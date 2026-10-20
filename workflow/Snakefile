@@ -25,11 +25,8 @@ wildcard_constraints:
 # una secuencia de uno o más caracteres, donde cada uno es letra, número, guion bajo o guion medio — nada más
 rule all:
     input:
-        expand(
-            "results/annotated/{library_batch}",
-            library_batch=LIBRARY_BATCHES,
-        ),
         "results/qc_reports/qc_summary_all.csv",
+        "results/annotation_plots/combined_umap_celltype.png"
         "results/doublet_reports/doublet_summary_all.csv",
         "results/annotation_plots/combined_umap_celltype.png",
         "results/annotation_plots/combined_umap_source.png",
@@ -40,23 +37,17 @@ rule all:
             library_batch=LIBRARY_BATCHES,
         ),
         expand(
-            "results/phenotype/{phenotype}/{cell_type}/integrated.rds",
-            phenotype=PHENOTYPES,
-            cell_type=CELL_TYPES,
-        ),
-        expand(
-            "results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}.rds",
-            phenotype=PHENOTYPES,
-            cell_type=CELL_TYPES,
-            gamma=GAMMAS,
-        ),
-        expand(
             "results/aracne/{phenotype}/{cell_type}/gamma{gamma}/network.txt",
             phenotype=config["aracne"]["targets"]["phenotypes"],
             cell_type=config["aracne"]["targets"]["cell_types"],
             gamma=config["aracne"]["targets"]["gammas"],
         ),
-
+        expand(
+            "results/supercell_plots/{phenotype}/{cell_type}/gamma{gamma}",
+            phenotype=config["aracne"]["targets"]["phenotypes"],
+            cell_type=config["aracne"]["targets"]["cell_types"],
+            gamma=config["aracne"]["targets"]["gammas"],
+        ),
 
 # La regla principal que hace el demultiplexing , toma cada archivo de ibreria y usando el scriot de
 # R hace el demultiplexing y genera un rds por specimenID
@@ -200,7 +191,7 @@ rule normalize_batch:
         "envs/seurat_demultiplexing.yaml"
     threads: 2
     script:
-        "scripts/5_normalize_batch.R"
+        "scripts/4_normalize_batch.R"
 
 rule plot_normalization:
     input:
@@ -213,8 +204,9 @@ rule plot_normalization:
         "envs/seurat_demultiplexing.yaml"
     threads: 2
     script:
-        "scripts/5.1_plot_normalization.R"
-# Empezamos por anotar
+        "scripts/4.1_plot_normalization.R"
+
+# Annotation
 
 
 rule annotate_reference_batch:
@@ -228,7 +220,7 @@ rule annotate_reference_batch:
         "envs/seurat_demultiplexing.yaml"
     threads: 2
     script:
-        "scripts/6_annotate_reference_batch.R"
+        "scripts/5.1_annotate_reference_batch.R"
 
 
 # Exportar las células que no se asignan con el modelo de referencia
@@ -247,7 +239,7 @@ rule export_unassigned:
     conda:
         "envs/seuratdisk.yaml"
     script:
-        "scripts/7_export_unassigned.R"
+        "scripts/5.2_export_unassigned.R"
 
 
 # cell typist , anotacion de las celulas no asignadas con un modelo de referencia, usando celltypist, un modelo de anotacion de celulas basado en aprendizaje
@@ -265,7 +257,7 @@ rule run_celltypist:
     conda:
         "envs/celltypist_env.yaml"
     shell: #identar bien y ponerle comillas y /
-            "$CONDA_PREFIX/bin/python workflow/scripts/8_run_celltypist.py "
+            "$CONDA_PREFIX/bin/python workflow/scripts/5.3_run_celltypist.py "
             "--h5ad {input.h5ad} "
             "--model {params.model} "
             "--majority-voting {params.majority_voting} "
@@ -287,7 +279,7 @@ rule merge_celltypist_back:
         "envs/seurat_demultiplexing.yaml"
     threads: 2
     script:
-        "scripts/9_merge_celltypist_back.R"
+        "scripts/5.4_merge_celltypist_back.R"
 
 rule plot_combined_umap:
     input:
@@ -306,7 +298,7 @@ rule plot_combined_umap:
         "envs/seurat_demultiplexing.yaml"
     threads: 4
     script:
-        "scripts/9.1_diagnostics_and_umap.R"
+        "scripts/5.5_diagnostics_and_umap.R"
 
 #SPLITS
 rule split_by_phenotype:
@@ -323,7 +315,7 @@ rule split_by_phenotype:
         "envs/seurat_demultiplexing.yaml"
     threads: 2
     script:
-        "scripts/10.1_split_by_phenotype.R"
+        "scripts/6.1_split_by_phenotype.R"
 
 
 rule split_by_cell_type:
@@ -337,7 +329,7 @@ rule split_by_cell_type:
         "envs/seurat_demultiplexing.yaml"
     threads: 2
     script:
-        "scripts/10.2_split_by_cell_type.R"
+        "scripts/6.2_split_by_cell_type.R"
 
 
 rule merge_phenotype_celltype:
@@ -351,7 +343,7 @@ rule merge_phenotype_celltype:
         "envs/seurat_demultiplexing.yaml"
     threads: 2
     script:
-        "scripts/11_merge_phenotype_celltype.R"
+        "scripts/7_merge_phenotype_celltype.R"
 
 
 #iNTEGRACION
@@ -368,7 +360,7 @@ rule integrate_phenotype_celltype:
         "envs/harmony_integration.yaml"
     threads: 4
     script:
-        "scripts/12_integrate_phenotype_celltype.R"
+        "scripts/8_integrate_phenotype_celltype.R"
 
 #Super cell  1-build with different gamma 
 rule build_supercell:
@@ -390,7 +382,7 @@ rule build_supercell:
         "envs/supercell.yaml"
     threads: 2
     script:
-        "scripts/13_build_supercell.R"
+        "scripts/9.1_build_supercell.R"
 
 
 rule aggregate_supercell_summary:
@@ -408,7 +400,7 @@ rule aggregate_supercell_summary:
     conda:
         "envs/supercell.yaml"
     script:
-        "scripts/13.1_aggregate_supercell_summary.R"
+        "scripts/9.2_aggregate_supercell_summary.R"
 
 rule compute_supercell_expression:
     input:
@@ -422,7 +414,7 @@ rule compute_supercell_expression:
         "envs/supercell.yaml"
     threads: 2
     script:
-        "scripts/13.2_compute_supercell_expression.R"
+        "scripts/9.3_compute_supercell_expression.R"
 
 rule plot_supercell_qc:
     input:
@@ -441,12 +433,7 @@ rule plot_supercell_qc:
         "envs/supercell.yaml"
     threads: 1
     script:
-        "scripts/13.4_supercell_plots.R"
-
-
-
-
-
+        "scripts/9.4_supercell_plots.R"
 
 #Exportar matrices para ARACNE
 rule export_aracne_matrix:
@@ -464,7 +451,7 @@ rule export_aracne_matrix:
         "envs/supercell.yaml"
     threads: 1
     script:
-        "scripts/14_export_aracne_matrices.R"
+        "scripts/10_export_aracne_matrices.R"
 
 #ARACNE
 

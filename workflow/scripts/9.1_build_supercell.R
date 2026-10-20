@@ -6,9 +6,9 @@ suppressPackageStartupMessages({
   library(Matrix)
 })
 
-# Solo lo instalamos si no esta disponible en el ambiente, para evitar problemas de compatibilidad con la version de R
+# Install in the env
 if (!requireNamespace("SuperCell", quietly = TRUE)) {
-  message("SuperCell no esta instalado en este ambiente, instalando desde GitHub...")
+  message("SuperCell is not in the env, need be installed from github..")
   if (!requireNamespace("remotes", quietly = TRUE)) {
     install.packages("remotes", repos = "https://cloud.r-project.org")
   }
@@ -31,29 +31,29 @@ approx_n       <- snakemake@params[["approx_n"]]
 seed           <- snakemake@params[["seed"]]
 reduction_pref <- snakemake@params[["reduction"]]
 
-set.seed(seed) # impotant for reproducibility of the supercell construction
+set.seed(seed) # important for the reproducibility of the supercell construction
 
 message("Phenotype: ", phenotype_wc, " | Cell type: ", cell_type_wc, " | Gamma: ", gamma_wc)
 
 obj <- readRDS(integrated_path)
-message("Celulas: ", ncol(obj))
+message("Cells: ", ncol(obj))
 
-# Usar la reduccion preferida (harmony) si existe; si no, caer a pca
-# (las combinaciones con 1 solo individuo no tienen reduccion harmony)
+# (combinations with a single individual do not have a harmony reduction)
 reduction_use <- if (reduction_pref %in% Reductions(obj)) {
   reduction_pref
 } else {
-  message("ADVERTENCIA: reduccion '", reduction_pref, "' no encontrada, usando 'pca'")
+  message("WARNING: reduction '", reduction_pref, "' not found, using 'pca'")
   "pca"
 }
 
 n_pc_use  <- min(n_pc, ncol(Embeddings(obj, reduction = reduction_use))) 
-#numero de PCs a usar para construir el grafo de metacelulas, no puede ser mayor al numero de PCs disponibles en el objeto Seurat
+# Number of PCs used to build the metacell graph; it cannot exceed the number
+# of PCs available in the Seurat object
 embedding <- Embeddings(obj, reduction = reduction_use)[, 1:n_pc_use]
-# Crea el objeto SuperCell a partir de la reduccion de dimension EMBEDINGS  y el parametro gamma
+# Create the SuperCell object from the dimensionality-reduction embedding and the gamma parameter
 
-message("Usando reduccion: ", reduction_use, " | dimensiones: ", n_pc_use)
-message("Construyendo metacelulas con gamma = ", gamma_wc, "...")
+message("Using reduction: ", reduction_use, " | dimensions: ", n_pc_use)
+message("Building metacells with gamma = ", gamma_wc, "...")
 
 SC <- SCimplify_from_embedding(
   X         = embedding,
@@ -65,15 +65,16 @@ SC <- SCimplify_from_embedding(
   seed      = seed
 )
 
-message("Metacelulas construidas: ", SC$N.SC)
-message("Tamano promedio: ", round(mean(SC$supercell_size), 1), " celulas/metacelula")
+message("Metacells built: ", SC$N.SC)
+message("Mean size: ", round(mean(SC$supercell_size), 1), " cells/metacell")
+
 
 dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
 saveRDS(SC, out_path)
 
-message("Guardado: ", out_path)
+message("Saved: ", out_path)
 
-# resumen individual de esta corrida 
+# Summary of this run
 summary_row <- data.frame(
   phenotype       = phenotype_wc,
   cell_type       = cell_type_wc,
@@ -87,6 +88,6 @@ summary_row <- data.frame(
 )
 
 write.csv(summary_row, snakemake@output[["summary"]], row.names = FALSE)
-message("Resumen individual guardado en: ", snakemake@output[["summary"]])
+message("Run summary saved in: ", snakemake@output[["summary"]])
 
 sink(type = "message"); sink()

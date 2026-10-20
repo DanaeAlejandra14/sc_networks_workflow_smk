@@ -4,15 +4,13 @@ sink(log); sink(log, type = "message")
 library(tidyverse)
 library(Seurat)
 
-# Define inputs and outputs
 batch_name <- snakemake@wildcards[["library_batch"]]
 doublet_dir <- snakemake@input[["doublet_dir"]]
 norm_dir <- snakemake@output[["norm_dir"]]
 
-#El parámetro scale_factor se obtiene del archivo de configuración y se utiliza en la función NormalizeData para escalar los datos normalizados.
+#The parameter scale_factor is obtained from the configuration file and is used in the NormalizeData function to scale the normalized data.
 scale_factor <- snakemake@config[["normalization"]][["scale_factor"]]
 
-#creamos la carpea de salida si no existe
 dir.create(norm_dir, recursive = TRUE, showWarnings = FALSE)
 
 message("Running normalization for batch: ", batch_name)
@@ -28,16 +26,18 @@ for (rds_file in rds_files) {
 
   obj <- readRDS(rds_file)
 
-# de git 
+# git 
 
-# "m"ethod “LogNormalize” that normalizes the feature expression measurements 
+# method “LogNormalize” that normalizes the feature expression measurements 
 #for each cell by the total expression, multiplies this by a scale factor 
 #(10,000 by default)
 
-  DefaultAssay(obj) <- "RNA" # cuando quiera assay saber que es el RNA
-  #donde se realizara la normalización
+  DefaultAssay(obj) <- "RNA" # The normalization is applied to the RNA assay, 
+  #which contains the raw counts of gene expression for each cell. This is important because Seurat objects 
+  #can contain multiple assays (e.g., RNA, protein, etc.), and we want to ensure that we are normalizing the correct data.
+  
 
-  obj <- NormalizeData(  #toma los count crudos y les aplica la formula de normalizacion
+  obj <- NormalizeData(  #Take the raw counts and aplly normalization
   
     obj,
     normalization.method = "LogNormalize",

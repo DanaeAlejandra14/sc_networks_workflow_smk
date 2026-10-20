@@ -23,8 +23,8 @@ message("Using seed: ", seed)
 rds_files <- list.files(qc_dir, pattern = "\\.rds$", full.names = TRUE)
 message("Found ", length(rds_files), " specimen(s) in this batch")
 
-doublet_summary <- list() # empieza la lista para almacenar los resultados de cada specimen
-doublet_cells   <- list()   # <- nuevo
+doublet_summary <- list() # list to save the summary of doublet detection for each specimen_id, that will be saved in a csv at the end
+doublet_cells   <- list()   # list to save the per-cell doublet metrics for each specimen_id, that will be saved in a csv at the end
 
 for (rds_file in rds_files) {
 
@@ -33,38 +33,20 @@ for (rds_file in rds_files) {
 
   obj <- readRDS(rds_file)
 
-#Transforma el objeto Seurat a un objeto SingleCellExperiment para usar scDblFinder
+# Trandsform the Seurat object to a SingleCellExperiment object, which is the input format required by scDblFinder
   sce <- as.SingleCellExperiment(obj, assay = "RNA") 
-  sce <- scDblFinder(sce) #Toma el objeto SingleCellExperiment y ejecuta la detección de dobletes, 
-  #simulando dobletes y clasificando las células como "singlet" o "doublet" según su perfil de expresión.
-  #se agrega la columna dentro de la misma Metadata interna 
+  sce <- scDblFinder(sce) # Take the SingleCellExperiment object and run scDblFinder, which simulates doublets and classifies cells as "singlet" or "doublet" based on their expression profile. The results are added to the metadata of the SingleCellExperiment object.
+  #This tool estimates the probability of each cell being a doublet based on its expression profile and the expected doublet rate, which is inferred from the data. The results are added to the metadata of the SingleCellExperiment object.
+  # This information is save in metadata columns "scDblFinder.score" (the probability of being a doublet) and "scDblFinder.class" (the classification as "singlet" or "doublet").
 
-# Agrega los resultados de scDblFinder al objeto Seurat original
-  obj$scDblFinder.score <- sce$scDblFinder.score #probabilidad de que una célula sea un doblete
+# Add the doublet detection results back to the Seurat object, 
   obj$scDblFinder.class <- sce$scDblFinder.class #singlet/doublet
+  obj$scDblFinder.score <- sce$scDblFinder.score #probability of being a doublet
 
   n_cells <- ncol(obj) 
   n_doublet <- sum(obj$scDblFinder.class == "doublet")
   n_singlet <- sum(obj$scDblFinder.class == "singlet")
 
-  # Ahora sí se eliminan los doublets del objeto que se guarda
-  obj_filtered <- subset(obj, subset = scDblFinder.class == "singlet")
-
-  saveRDS(
-    obj_filtered,                                      # <- antes era "obj"
-    file = file.path(doublet_dir, paste0(specimen_id, ".rds")),
-    compress = "gzip"
-  )
-
-  doublet_summary[[specimen_id]] <- tibble( 
-    specimenID = specimen_id,
-    n_cells = n_cells,
-    n_singlet = n_singlet,
-    n_doublet = n_doublet,
-    pct_doublet = round(100 * n_doublet / n_cells, 2)
-  )
-
-  
   cell_df <- tibble(
   library_batch      = batch_name,
   specimenID         = specimen_id,
@@ -75,11 +57,9 @@ for (rds_file in rds_files) {
   scDblFinder.class  = obj$scDblFinder.class
 )
 
-doublet_cells[[specimen_id]] <- cell_df
-
-n_cells   <- ncol(obj)
-n_doublet <- sum(obj$scDblFinder.class == "doublet")
-n_singlet <- sum(obj$scDblFinder.class == "singlet")
+ doublet_cells[[specimen_id]] <- cell_df   
+#Eliminate doublets from the Seurat object, keeping only singlets, and save the filtered object to a new .rds file in the doublet_dir. 
+  #The summary of doublet detection (number of cells, number of singlets, number of doublets, percentage of doublets) is saved in a tibble for each specimen_id, which will be combined into a single summary table at the end.
 
 obj_filtered <- subset(obj, subset = scDblFinder.class == "singlet")
 
@@ -96,15 +76,14 @@ doublet_summary[[specimen_id]] <- tibble(
   n_doublet   = n_doublet,
   pct_doublet = round(100 * n_doublet / n_cells, 2)
 )
-}   # <- aquí SÍ cierra el for loop
+}   
 
 doublet_cells_df <- bind_rows(doublet_cells)
 write_csv(doublet_cells_df, snakemake@output[["cells"]])
 message("Per-cell doublet metrics written to: ", snakemake@output[["cells"]])
 
-# Los dobletes se eliminan en este mismo paso; el .rds guardado en doublet_dir
-# solo contiene singlets. El resumen (n_doublet, pct_doublet) se calcula
-# ANTES de esa eliminación, sobre todas las células.
+# The summary of doublet detection (number of cells, number of singlets, number of doublets, percentage of doublets) 
+#is saved in a tibble for each specimen_id, which will be combined into a single summary table at the end.
 doublet_summary_df <- bind_rows(doublet_summary)
 write_csv(doublet_summary_df, summary_path)
 

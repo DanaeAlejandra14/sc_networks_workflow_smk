@@ -16,8 +16,9 @@ message("Running reference annotation for batch: ", batch_name)
 
 cell_annotation <- readr::read_csv(reference_csv, show_col_types = FALSE)
 
-#se construye un diccionario de anotaciones a partir de csv de referencia 
-# Convierte el CSV en tabla de búsqueda: cell_id -> cell.type/state
+
+# We construct a lookup table (annotation_map) from the reference CSV file, which maps each cell ID to its corresponding cell type and state. This will be used to annotate the cells in the Seurat objects for the current batch.
+#Converts the CSV into a lookup table: cell_id -> cell.type/state
 annotation_map <- cell_annotation %>%
   dplyr::select(cell, cell.type, state) %>%
   dplyr::distinct() %>%
@@ -33,11 +34,13 @@ for (rds_file in rds_files) {
 
   obj <- readRDS(rds_file)
 
-  # Reconstruye el formato "batch_barcode" que usa el CSV de referencia
+  # Reconstruct the cell keys for the current Seurat object by concatenating the batch name and cell barcodes. This will be used to look up the corresponding cell type and state in the annotation_map.
   cell_key <- paste0(batch_name, "_", colnames(obj))
 
-   #Esto es lo que hace que el matching suce# Si cell_key no existe en annotation_map, 
-   #R regresa NA automáticamente -> así se generan las células "unassigned"da 
+   
+   # The match is done by using the cell_key to index into the annotation_map, 
+   # which returns the corresponding cell type and state for each cell. If a cell_key does not exist in the annotation_map,
+   # R will return NA automatically, resulting in "unassigned" cells.
   obj$cell_type  <- annotation_map[cell_key, "cell.type", drop = TRUE]
   obj$cell_state <- annotation_map[cell_key, "state", drop = TRUE]
 

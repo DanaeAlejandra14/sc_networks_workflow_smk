@@ -1,5 +1,3 @@
-writeLines(paste("EMPECE A CORRER:", Sys.time()), "/tmp/debug_attach_filter.txt")
-
 log <- file(snakemake@log[[1]], open = "wt")
 sink(log); sink(log, type = "message")
 
@@ -15,7 +13,7 @@ excluded_dir <- snakemake@output[["excluded_dir"]]
 dir.create(filtered_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(excluded_dir, recursive = TRUE, showWarnings = FALSE)
 
-message("Adjuntando y filtrando fenotipo para batch: ", batch_name)
+message("Attaching and filtering phenotype for batch: ", batch_name)
 
 phenotype <- read_csv(phenotype_path, show_col_types = FALSE)
 pheno_map <- setNames(phenotype$phenotype_label, phenotype$individualID)
@@ -32,16 +30,17 @@ for (rds_file in rds_files) {
 
   obj <- readRDS(rds_file)
 
-  # individualID ya existe en cada celula desde el paso 1 (demultiplex_batch.R)
+  # individualID alredy exists in the Seurat object metadata, we just need to map it to phenotype_label
   obj$phenotype_label <- unname(pheno_map[as.character(obj$individualID)])
 
-  # un specimen = un individualID -> el phenotype_label debe ser uniforme en el objeto
+  # 
+  # an specimen= an individualID -> the phenotype_label should be uniform in the object
   unique_labels <- unique(obj$phenotype_label)
   non_na_labels <- unique_labels[!is.na(unique_labels)]
 
   if (length(non_na_labels) > 1) {
     warning("  Specimen ", specimen_id,
-            " tiene mas de un phenotype_label no-NA (individualID mixto?): ",
+            " has more than one non-NA phenotype_label (mixed individualID?): ",
             paste(non_na_labels, collapse = ", "))
   }
 
@@ -52,17 +51,17 @@ for (rds_file in rds_files) {
           " | Cells with NA phenotype: ", sum(is.na(obj$phenotype_label)))
 
   if (is.na(specimen_label)) {
-    message("  -> Excluido (sin fenotipo valido): ", specimen_id)
+    message("  -> Excluded: has no valid phenotype label: ", specimen_id)
     saveRDS(obj, file.path(excluded_dir, paste0(specimen_id, ".rds")), compress = "gzip")
     n_excluded <- n_excluded + 1
   } else {
-    message("  -> Conservado: ", specimen_id)
+    message("  -> Included: ", specimen_id)
     saveRDS(obj, file.path(filtered_dir, paste0(specimen_id, ".rds")), compress = "gzip")
     n_kept <- n_kept + 1
   }
 }
 
-message("Batch ", batch_name, " completo. Conservados: ", n_kept,
-        " | Excluidos: ", n_excluded)
+message("Batch ", batch_name, " complete. Kept: ", n_kept,
+        " |excluded: ", n_excluded)
 
 sink(type = "message"); sink()

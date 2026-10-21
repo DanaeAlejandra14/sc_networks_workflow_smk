@@ -15,9 +15,11 @@ obj <- readRDS(integrated_rds)
 message("Reading SuperCell object: ", sc_rds)
 sc <- readRDS(sc_rds)
 
-# Raw expression matrix (counts) of the original cells
+# Raw expression matrix (counts) of the original cells ?
+# # Log-normalized expression (data, Seurat LogNormalize, scale.factor = 1e4) of the original cells
+#count or datta
 obj <- JoinLayers(obj)
-GE <- GetAssayData(obj, layer = "counts")
+GE <- GetAssayData(obj, layer = "data") # or "data" with LogNormalize data???
 
 # Make sure the cells match between the integrated object and the membership vector
 common_cells <- intersect(colnames(GE), names(sc$membership))

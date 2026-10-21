@@ -10,8 +10,8 @@ min_version("9.0")
 configfile: "config/config.yaml"
 
 (LIBRARY_BATCHES,) = glob_wildcards("data/{library_batch}.matrix.mtx.gz")
-# global_wildcards: mira que archivos existen en mi data y extrae los valores que encajan con el wildcard
-# ","-> desempacking, para que quede como lista y no como tupla
+# global_wildcards: Check which files exist in my data and extract the values ​​that match the wildcard
+# ","-> list 
 PHENOTYPES = config["phenotype"]["categories"]
 CELL_TYPES = config["cell_type"]["selected"]
 GAMMAS = [str(g) for g in config["supercell"]["gammas"]]
@@ -25,9 +25,9 @@ wildcard_constraints:
 # una secuencia de uno o más caracteres, donde cada uno es letra, número, guion bajo o guion medio — nada más
 rule all:
     input:
-        "results/qc_reports/qc_summary_all.csv",
-        "results/annotation_plots/combined_umap_celltype.png"
-        "results/doublet_reports/doublet_summary_all.csv",
+        #"results/qc_reports/qc_summary_all.csv",
+        "results/annotation_plots/combined_umap_celltype.png",
+        #"results/doublet_reports/doublet_summary_all.csv",
         "results/annotation_plots/combined_umap_celltype.png",
         "results/annotation_plots/combined_umap_source.png",
         "results/annotation_plots/combined_umap_batch.png",
@@ -49,8 +49,8 @@ rule all:
             gamma=config["aracne"]["targets"]["gammas"],
         ),
 
-# La regla principal que hace el demultiplexing , toma cada archivo de ibreria y usando el scriot de
-# R hace el demultiplexing y genera un rds por specimenID
+# Rule for demultiplexing
+
 rule demultiplex_batch:
     input:
         matrix="data/{library_batch}.matrix.mtx.gz",
@@ -67,9 +67,7 @@ rule demultiplex_batch:
     script:
         "scripts/1_demultiplex_batch.R"
 
-#Aqui agregamos el fenotipo -CAMBIO 
-#Agregar mi metadata de paciente
-
+# Add phenotype
 rule stratify_phenotype:
     input:
         biospecimen="resources/ROSMAP_biospecimen_metadata.csv",
@@ -101,7 +99,7 @@ rule attach_and_filter_phenotype:
         "scripts/1.5_attach_and_filter_phenotype.R"
 
 
-# Regla que hace el QC de los rds generados por la regla anterior, toma cada rds y usando el script de R hace el QC y genera un rds por specimenID
+#QC for each specimenID
 
 rule qc_batch:
     input:  #cada uno de las carpetas de cada batch
@@ -136,7 +134,7 @@ rule doublet_detection:
         "scripts/3_doublet_detection.R"
 
 
-# Plots de todo
+# Plots
 rule plots_qc_doublets:
     input:
         qc=expand(
@@ -156,7 +154,7 @@ rule plots_qc_doublets:
             library_batch=LIBRARY_BATCHES,
         ),
     output:
-        # #  plots globales por specimen
+        # plots
         summary="results/qc_reports/qc_and_doublets_summary_all.csv",
         pct_kept="results/plots/qc_doublets/01_pct_cells_kept_per_specimen.png",
         pct_doublet="results/plots/qc_doublets/02_pct_doublet_per_specimen.png",
@@ -179,7 +177,7 @@ rule plots_qc_doublets:
         "scripts/2.1_plots_qc_doublets.R"
 
 
-# normalization, se aplica un LogNormalize a cada uno de los rds
+# normalization ->  LogNormalize
 rule normalize_batch:
     input:
         doublet_dir="results/doublets_flagged/{library_batch}",
@@ -208,7 +206,6 @@ rule plot_normalization:
 
 # Annotation
 
-
 rule annotate_reference_batch:
     input:
         norm_dir="results/normalized/{library_batch}",
@@ -221,10 +218,6 @@ rule annotate_reference_batch:
     threads: 2
     script:
         "scripts/5.1_annotate_reference_batch.R"
-
-
-# Exportar las células que no se asignan con el modelo de referencia
-
 
 rule export_unassigned:
     input:
@@ -242,7 +235,6 @@ rule export_unassigned:
         "scripts/5.2_export_unassigned.R"
 
 
-# cell typist , anotacion de las celulas no asignadas con un modelo de referencia, usando celltypist, un modelo de anotacion de celulas basado en aprendizaje
 rule run_celltypist:
     input:
         h5ad="results/unassigned_export/unassigned.h5ad",
@@ -435,7 +427,7 @@ rule plot_supercell_qc:
     script:
         "scripts/9.4_supercell_plots.R"
 
-#Exportar matrices para ARACNE
+# Export matrices
 rule export_aracne_matrix:
     input:
         ge="results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}_GE.rds",
@@ -479,7 +471,7 @@ rule build_aracne:
         ant main
         """
  
-rule aracne_threshold: # Calculo de la MI para ser significativa
+rule aracne_threshold: # Mutual Information
     input:
         expr="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/scmatrix.tsv",
         tfs="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/centroids.txt",
@@ -503,7 +495,7 @@ rule aracne_threshold: # Calculo de la MI para ser significativa
         """
 
 
-rule aracne_bootstrap: #n_boot redes
+rule aracne_bootstrap: #n_boot networks
     input:
         expr="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/scmatrix.tsv",
         tfs="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/centroids.txt",
@@ -537,7 +529,7 @@ def aracne_boots(wc):
     )
 
 
-rule aracne_consolidate: #combina las redes en una sola
+rule aracne_consolidate: 
     input:
         threshold="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work/.threshold_done",
         boots=aracne_boots,

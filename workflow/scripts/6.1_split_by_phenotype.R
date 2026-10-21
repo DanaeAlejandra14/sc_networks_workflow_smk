@@ -58,7 +58,8 @@ for (annotated_dir in annotated_dirs) {
     }
 
     rm(obj) #Erase the previous rds of the memory
-}
+  }   # end of loop over specimens
+}     # end of loop over batches
 
 message("Phenotype ", phenotype_wc,
         " | assigned specimens ", n_matched, " out of ", n_total, " totales checked")

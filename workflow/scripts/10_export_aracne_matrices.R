@@ -16,6 +16,7 @@ ge <- as.matrix(readRDS(ge_rds))
 message("Original dimensions (genes x metacells): ", paste(dim(ge), collapse = " x "))
 
 # Filter genes by the fraction of metacells with expression > 0 (computed on raw values)
+#Es necesario?
 keep <- rowMeans(ge > 0) >= min_frac
 ge <- ge[keep, , drop = FALSE]
 message("Genes after filtering (>= ", min_frac, " of metacells): ", nrow(ge))

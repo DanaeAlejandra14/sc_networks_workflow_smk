@@ -5,3 +5,4 @@ results/
 .snakemake/
 logs/
 benchmarks/
+__pycache__/

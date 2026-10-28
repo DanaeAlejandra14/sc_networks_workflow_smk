@@ -6,6 +6,17 @@ import pandas as pd
 import anndata as ad
 import celltypist
 
+# Send all output and errors to the Snakemake log file
+log_file = open(snakemake.log[0], "w")
+sys.stdout = log_file
+sys.stderr = log_file
+
+h5ad            = snakemake.input["h5ad"]
+model           = snakemake.params["model"]
+majority_voting = snakemake.params["majority_voting"]
+min_prob        = snakemake.params["min_prob"]
+out             = snakemake.output["predictions"]
+
 #this script runs CellTypist on a given h5ad file and saves the results to a CSV file.
 # It also simplifies the cell type labels into broader categories.
 

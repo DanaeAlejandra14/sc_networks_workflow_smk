@@ -233,8 +233,7 @@ rule export_unassigned:
         "envs/seuratdisk.yaml"
     script:
         "scripts/5.2_export_unassigned.R"
-
-
+    
 rule run_celltypist:
     input:
         h5ad="results/unassigned_export/unassigned.h5ad",
@@ -248,16 +247,8 @@ rule run_celltypist:
         "logs/run_celltypist/run_celltypist.log",
     conda:
         "envs/celltypist_env.yaml"
-    shell: #identar bien y ponerle comillas y /
-            "$CONDA_PREFIX/bin/python workflow/scripts/5.3_run_celltypist.py "
-            "--h5ad {input.h5ad} "
-            "--model {params.model} "
-            "--majority-voting {params.majority_voting} "
-            "--min-prob {params.min_prob} "
-            "--out {output.predictions} "
-            "> {log} 2>&1"
-    
-
+    script:
+        "scripts/5.3_run_celltypist.py"
 
 rule merge_celltypist_back:
     input:
@@ -447,38 +438,16 @@ rule export_aracne_matrix:
 
 #ARACNE
 
-ARACNE      = "resources/tools/ARACNe-AP/dist/aracne.jar"
-PVALUE      = config["aracne"]["pvalue"]
-N_BOOT      = config["aracne"]["bootstrap"]["n_boot"]
-NET_THREADS = config["aracne"]["bootstrap"]["threads"]
-NODPI       = ""    # DPI activo (comportamiento por defecto de ARACNe)
-
-
-rule build_aracne:
-    output:
-        jar="resources/tools/ARACNe-AP/dist/aracne.jar",
-    log:
-        "logs/build_aracne/build.log",
-    conda:
-        "envs/aracne.yaml"
-    shell:
-        """
-        exec > {log} 2>&1
-        mkdir -p resources/tools
-        cd resources/tools
-        [ -d ARACNe-AP ] || git clone https://github.com/califano-lab/ARACNe-AP.git
-        cd ARACNe-AP
-        ant main
-        """
- 
-rule aracne_threshold: # Mutual Information
+# ARACNe-AP. Step 1: MI threshold. Output: folder with miThreshold_p<pvalue>_samples<N>.txt
+rule aracne_threshold:
     input:
-        expr="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/scmatrix.tsv",
-        tfs="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/centroids.txt",
+        matrix="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/scmatrix.tsv",
+        genes="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/centroids.txt",
+        jar=config["aracne"]["jar"],
     output:
-        touch("results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work/.threshold_done"),
+        directory("results/aracne/{phenotype}/{cell_type}/gamma{gamma}/threshold"),
     params:
-        work_dir="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work",
+        pvalue=config["aracne"]["pvalue"],
     resources:
         mem_gb=config["aracne"]["memory"]["threshold_gb"],
     log:
@@ -487,26 +456,29 @@ rule aracne_threshold: # Mutual Information
         "envs/aracne.yaml"
     shell:
         """
-        mkdir -p {params.work_dir}
-        java -Xmx{resources.mem_gb}G -jar {ARACNE} \
-          -e {input.expr} -o {params.work_dir} --tfs {input.tfs} \
-          --pvalue {PVALUE} --seed 1 --calculateThreshold {NODPI} \
-          &> {log}
+        mkdir -p {output}
+        java -Xmx{resources.mem_gb}G -jar {input.jar} \
+            -e {input.matrix} -o {output} --tfs {input.genes} \
+            --pvalue {params.pvalue} --seed 1 --calculateThreshold \
+            &> {log}
         """
 
 
-rule aracne_bootstrap: #n_boot networks
+# ARACNe-AP. Step 2: one bootstrap per seed. Output: folder with bootstrapNetwork_*.txt
+rule aracne_bootstrap:
     input:
-        expr="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/scmatrix.tsv",
-        tfs="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/centroids.txt",
-        threshold="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work/.threshold_done",
+        matrix="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/scmatrix.tsv",
+        genes="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/centroids.txt",
+        threshold="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/threshold",
+        jar=config["aracne"]["jar"],
     output:
-        touch("results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work/bt_{rep}.done"),
+        directory("results/aracne/{phenotype}/{cell_type}/gamma{gamma}/bootstraps/seed{rep}"),
     wildcard_constraints:
         rep=r"\d+",
     params:
-        work_dir="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work",
-    threads: NET_THREADS
+        pvalue=config["aracne"]["pvalue"],
+        n_boot=config["aracne"]["bootstrap"]["n_boot"],   
+    threads: config["aracne"]["bootstrap"]["threads"]
     resources:
         mem_gb=config["aracne"]["memory"]["bootstrap_gb"],
     log:
@@ -515,28 +487,29 @@ rule aracne_bootstrap: #n_boot networks
         "envs/aracne.yaml"
     shell:
         """
-        java -Xmx{resources.mem_gb}G -jar {ARACNE} \
-          -e {input.expr} -o {params.work_dir} --tfs {input.tfs} \
-          --pvalue {PVALUE} --threads {threads} --seed {wildcards.rep} {NODPI} \
-          &> {log}
+        if [ {wildcards.rep} -gt {params.n_boot} ]; then
+            echo "seed {wildcards.rep} is larger than n_boot ({params.n_boot})" >&2
+            exit 1
+        fi
+        mkdir -p {output}
+        cp {input.threshold}/miThreshold_*.txt {output}/
+        java -Xmx{resources.mem_gb}G -jar {input.jar} \
+            -e {input.matrix} -o {output} --tfs {input.genes} \
+            --pvalue {params.pvalue} --threads {threads} --seed {wildcards.rep} \
+            &> {log}
         """
 
 
-def aracne_boots(wc):
-    return expand(
-        "results/aracne/{p}/{c}/gamma{g}/work/bt_{rep}.done",
-        p=wc.phenotype, c=wc.cell_type, g=wc.gamma, rep=range(1, N_BOOT + 1),
-    )
-
-
-rule aracne_consolidate: 
+# ARACNe-AP. Step 3: consolidate the bootstraps. Output: network.txt
+rule aracne_consolidate:
     input:
-        threshold="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work/.threshold_done",
-        boots=aracne_boots,
+        bootstraps=expand(
+            "results/aracne/{{phenotype}}/{{cell_type}}/gamma{{gamma}}/bootstraps/seed{rep}",
+            rep=range(1, config["aracne"]["bootstrap"]["n_boot"] + 1),
+        ),
+        jar=config["aracne"]["jar"],
     output:
         "results/aracne/{phenotype}/{cell_type}/gamma{gamma}/network.txt",
-    params:
-        work_dir="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/work",
     resources:
         mem_gb=config["aracne"]["memory"]["consolidate_gb"],
     log:
@@ -545,6 +518,146 @@ rule aracne_consolidate:
         "envs/aracne.yaml"
     shell:
         """
-        java -Xmx{resources.mem_gb}G -jar {ARACNE} -o {params.work_dir} --consolidate &> {log}
-        mv {params.work_dir}/network.txt {output}
+        WORK=$(dirname {output})/consensus 
+        rm -rf $WORK
+        mkdir -p $WORK
+        for d in {input.bootstraps}; do cp "$d"/bootstrapNetwork_*.txt $WORK/; done
+        java -Xmx{resources.mem_gb}G -jar {input.jar} -o $WORK --consolidate &> {log}
+        cp $WORK/network.txt {output}
         """
+
+
+# Decide donde trabajar en este caso en consenseus , borra lo que hay dentro , crea de nuevo la carpeta 
+# Para que sirve? Si se repite varias veces este paso, se pueden mezclar archivos de varias semillas 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# # ARACNe-AP. Step 2: one bootstrap per seed. Output: folder with bootstrapNetwork_*.txt
+# rule aracne_bootstrap:
+#     input:
+#         matrix="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/scmatrix.tsv",
+#         genes="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/centroids.txt",
+#         threshold="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/threshold",
+#         jar=config["aracne"]["jar"],
+#     output:
+#         directory("results/aracne/{phenotype}/{cell_type}/gamma{gamma}/bootstraps/seed{rep}"),
+#     wildcard_constraints:
+#         rep=r"\d+",
+#     params:
+#         pvalue=config["aracne"]["pvalue"],
+#     threads: config["aracne"]["bootstrap"]["threads"] 
+#     resources:
+#         mem_gb=config["aracne"]["memory"]["bootstrap_gb"],
+#     log:
+#         "logs/aracne/{phenotype}_{cell_type}_gamma{gamma}.bt_{rep}.log",
+#     conda:
+#         "envs/aracne.yaml"
+#     shell:
+#         """
+#         mkdir -p {output}
+#         cp {input.threshold}/miThreshold_*.txt {output}/
+#         java -Xmx{resources.mem_gb}G -jar {input.jar} \
+#             -e {input.matrix} -o {output} --tfs {input.genes} \
+#             --pvalue {params.pvalue} --threads {threads} --seed {wildcards.rep} \ 
+#             &> {log}
+#         """
+
+#    shell:
+#         """
+#         if [ ! -f {input.tfs} ]; then
+#           echo "ERROR: No existe centroids: {input.tfs}" >&2
+#           exit 1
+#         fi
+
+#         java -Xmx{resources.mem_gb}G -jar {ARACNE} \
+#           -e {input.expr} \
+#           -o {params.work_dir} \
+#           --tfs {input.tfs} \
+#           --pvalue {params.pvalue} \
+#           --threads {threads} \
+#           --seed {wildcards.rep} \
+#           {params.nodpi} \
+#           &> {log}
+#         """
+
+
+#    # for i in {1..100}
+# do
+# java -Xmx5G -jar aracne.jar -e test/matrix.txt  -o outputFolder --tfs test/tfs.txt --pvalue 1E-8 --seed $i
+# done
+
+
+
+# # rule consolidate:
+# #     input:
+# #         threshold = os.path.join(BASE_DIR, "work", "{phenotype}__{cell_type}", ".threshold_done"),
+# #         boots     = expand(
+# #                         os.path.join(BASE_DIR, "work", "{{phenotype}}__{{cell_type}}", "bt_{rep}.done"),
+# #                         rep=range(1, N_BOOT+1)
+# #                     )
+
+
+
+# def arane_bootstraps(wc):
+#     base = f"results/aracne/{wc.phenotype}/{wc.cell_type}/gamma{wc.gamma}/bootstraps"
+#     # "f" rellena lo que va entre llaves 
+#     n_boot = config["aracne"]["bootstrap"]["n_boot"]
+#        # {rep} toma todos los valores de 1 a n_boot (el +1 es porque range
+#         # no incluye el último número: range(1, 4) da 1, 2, 3)
+#     return [f"{base}/seed{rep}" for rep in range(1, n_boot + 1)]
+
+# # ARACNe-AP. Step 3: consolidate the bootstraps. Output: network.txt
+# rule aracne_consolidate:
+#     input:
+#         bootstraps=aracne_bootstraps,
+#         jar=config["aracne"]["jar"],
+#     output:
+#         "results/aracne/{phenotype}/{cell_type}/gamma{gamma}/network.txt",
+#     resources:
+#         mem_gb=config["aracne"]["memory"]["consolidate_gb"],
+#     log:
+#         "logs/aracne/{phenotype}_{cell_type}_gamma{gamma}.consolidate.log",
+#     conda:
+#         "envs/aracne.yaml"
+#     shell:
+#         """
+#         WORK=$(dirname {output})/consensus
+#         mkdir -p $WORK
+#         for d in {input.bootstraps}; do cp "$d"/bootstrapNetwork_*.txt $WORK/; done
+#         java -Xmx{resources.mem_gb}G -jar {input.jar} -o $WORK --consolidate &> {log}
+#         cp $WORK/network.txt {output}
+#         """

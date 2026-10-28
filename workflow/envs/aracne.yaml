@@ -1,8 +1,8 @@
+name: aracne
 channels:
   - conda-forge
 dependencies:
   - openjdk=11
-  - ant
-  - git
 
-  
+
+#Java Development Kit

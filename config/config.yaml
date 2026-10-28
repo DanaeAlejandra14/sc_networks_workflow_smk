@@ -52,13 +52,13 @@ cell_type:
 
 #Super cell
 
-supercell:
+supercell: #Falta una descripció pequeña de cada parametro 
   gammas: [10, 20]
   k_knn: 5
   n_pc: 30
-  do_approx: false
+  do_approx: false 
   approx_n: 0
-  seed: 42
+  seed: 42 
   reduction: "harmony"
 
 supercell_plots:
@@ -69,10 +69,12 @@ aracne:
   # Red 
   pvalue: "1E-8"                 # umbral de informacion mutua (threshold)
 
+    # Programa
+  jar: "resources/tools/aracne.jar"
   #  Matriz de entrada 
   matrix:
     normalize: "none"         # "log_cpm" o "none"
-    min_frac_expressed: 0.1      # genes expresados en >= 10% de las metacelulas
+    min_frac_expressed: 0.1 #mejor dejarlo en 0.5     # genes expresados en >= 10% de las metacelulas
 
   # Bootstraps 
   bootstrap:
@@ -94,3 +96,5 @@ aracne:
     phenotypes: ["AD-NC_ASYM", "AD-NC_SYM", "MCI", "control"]
     cell_types: ["Astrocyte"]
     gammas: [10]
+
+    

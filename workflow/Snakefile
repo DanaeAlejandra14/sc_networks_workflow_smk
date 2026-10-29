@@ -7,7 +7,7 @@ from snakemake.shell import shell
 shell.executable("/bin/bash")
 min_version("9.0")
 
-configfile: "config/config.yaml"
+configfile: "workflow/config/config.yaml"
 
 (LIBRARY_BATCHES,) = glob_wildcards("data/{library_batch}.matrix.mtx.gz")
 # global_wildcards: Check which files exist in my data and extract the values ​​that match the wildcard
@@ -476,9 +476,9 @@ rule aracne_bootstrap:
     wildcard_constraints:
         rep=r"\d+",
     params:
-        pvalue=config["aracne"]["pvalue"],
-        n_boot=config["aracne"]["bootstrap"]["n_boot"],   
-    threads: config["aracne"]["bootstrap"]["threads"]
+        pvalue=config["aracne"]["pvalue"], 
+        #el numero de boostraps esta definido por la siguiente regla de el DAG (aracne-consolidate)
+    threads: config["aracne"]["bootstrap"]["threads"],
     resources:
         mem_gb=config["aracne"]["memory"]["bootstrap_gb"],
     log:
@@ -487,10 +487,6 @@ rule aracne_bootstrap:
         "envs/aracne.yaml"
     shell:
         """
-        if [ {wildcards.rep} -gt {params.n_boot} ]; then
-            echo "seed {wildcards.rep} is larger than n_boot ({params.n_boot})" >&2
-            exit 1
-        fi
         mkdir -p {output}
         cp {input.threshold}/miThreshold_*.txt {output}/
         java -Xmx{resources.mem_gb}G -jar {input.jar} \
@@ -504,7 +500,7 @@ rule aracne_bootstrap:
 rule aracne_consolidate:
     input:
         bootstraps=expand(
-            "results/aracne/{{phenotype}}/{{cell_type}}/gamma{{gamma}}/bootstraps/seed{rep}",
+            "results/aracne/{phenotype}/{cell_type}/gamma{gamma}/bootstraps/seed{rep}",
             rep=range(1, config["aracne"]["bootstrap"]["n_boot"] + 1),
         ),
         jar=config["aracne"]["jar"],

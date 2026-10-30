@@ -1,0 +1,9 @@
+name: snakemake
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - snakemake=9.26.1
+  - snakefmt
+  - graphviz

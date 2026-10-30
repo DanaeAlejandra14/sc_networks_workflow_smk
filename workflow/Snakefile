@@ -7,7 +7,7 @@ from snakemake.shell import shell
 shell.executable("/bin/bash")
 min_version("9.0")
 
-configfile: "workflow/config/config.yaml"
+configfile: "config/config.yaml"
 
 (LIBRARY_BATCHES,) = glob_wildcards("data/{library_batch}.matrix.mtx.gz")
 # global_wildcards: Check which files exist in my data and extract the values ​​that match the wildcard

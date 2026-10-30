@@ -1,0 +1,14 @@
+# Functional enrichment (GO) of gene sets from the networks
+# Used by: ego_enrichment, plot_ego_enrichment
+# Kept apart from network_analysis.yaml because clusterProfiler is slow to install
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - r-base=4.3
+  - bioconductor-clusterprofiler
+  - bioconductor-org.hs.eg.db
+  # Plots
+  - r-ggplot2
+  - r-scales

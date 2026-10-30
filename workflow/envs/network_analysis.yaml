@@ -1,0 +1,16 @@
+# Network analysis and visualization (ARACNe networks downstream)
+# Used by: network_metrics, plot_networks, plot_top_hubs, ego_network, plot_ego_network
+# GO enrichment has its own environment (enrichment.yaml)
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - r-base=4.3
+  # Graphs: centrality, subgraphs, ego networks
+  - r-igraph
+  # Plots
+  - r-ggplot2
+  - r-ggraph
+  - r-ggrepel
+  - r-patchwork
+  - r-scales

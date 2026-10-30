@@ -97,4 +97,30 @@ aracne:
     cell_types: ["Astrocyte"]
     gammas: [10]
 
-    
+# ANALISIS DE REDES (se analizan las redes de aracne.targets)
+# Tablas:  results/net_analysis/{phenotype}/{cell_type}/gamma{gamma}/
+# Figuras: results/plots/{net_vis,hubs,ego}/{cell_type}/gamma{gamma}/
+
+# Visualizacion de redes (rule plot_networks)
+net_vis:
+  n_nodes: 100   # genes mostrados: aristas de mayor MI hasta llegar a este numero
+  n_hubs: 5      # hubs etiquetados (top PageRank de la red completa)
+  seed: 42       # semilla del layout, para que la figura sea reproducible
+
+# Top hubs por red (rule plot_top_hubs)
+hubs:
+  top_n: 10                      # hubs por PageRank mostrados en cada red
+  highlight_genes: ["SLC1A2"]    # genes a resaltar si aparecen entre los top hubs
+
+# Ego networks de genes de interes (rules ego_network, ego_enrichment, plot_ego_network)
+ego_networks:
+  genes: ["SLC1A2"]     # agregar genes aqui para analizarlos igual
+  analysis_order: 2     # vecinos usados en metricas y enriquecimiento (la figura usa solo primeros vecinos)
+  top_support: 15       # socios mostrados por fenotipo en la figura de soporte de bootstraps
+  seed: 42              # semilla del layout
+  enrichment:
+    ont: "BP"           # GO: BP (proceso biologico), MF o CC
+    padj_cutoff: 0.05   # p ajustada (BH) para considerar un termino significativo
+    top_terms: 5        # terminos significativos mostrados por fenotipo
+    min_gs_size: 10     # tamano minimo de los terminos GO probados
+    max_gs_size: 500    # tamano maximo de los terminos GO probados

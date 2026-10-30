@@ -78,14 +78,14 @@ aracne:
 
   # Bootstraps 
   bootstrap:
-    n_boot: 3                   # piloto; subir a 100 para la corrida final
+    n_boot: 10                  # piloto; subir a 100 para la corrida final
     threads: 4                   # hilos por bootstrap
 
   # Memoria por paso (GB)
   # Se usa para Java (-Xmx) y para que Snakemake calcule cuantos
   # bootstraps caben en paralelo si lanzas con --resources mem_gb=N.
   # Si ves OutOfMemoryError en los logs de bootstrap, sube bootstrap_gb.
-  memory:
+  memory: #Tener cuidado con cuanto darle a aracne-suele tomar mas 
     threshold_gb: 5
     bootstrap_gb: 8
     consolidate_gb: 5

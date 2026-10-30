@@ -21,6 +21,7 @@ wildcard_constraints:
     phenotype=r"[^/]+",
     cell_type=r"[^/]+",
     gamma=r"\d+",
+    gene=r"[A-Za-z0-9_.\-]+",
 
 # una secuencia de uno o más caracteres, donde cada uno es letra, número, guion bajo o guion medio — nada más
 rule all:
@@ -47,6 +48,22 @@ rule all:
             phenotype=config["aracne"]["targets"]["phenotypes"],
             cell_type=config["aracne"]["targets"]["cell_types"],
             gamma=config["aracne"]["targets"]["gammas"],
+        ),
+        expand(
+            "results/plots/net_vis/{cell_type}/gamma{gamma}/panel_phenotypes.png",
+            cell_type=config["aracne"]["targets"]["cell_types"],
+            gamma=config["aracne"]["targets"]["gammas"],
+        ),
+        expand(
+            "results/plots/hubs/{cell_type}/gamma{gamma}/top_hubs_pagerank.png",
+            cell_type=config["aracne"]["targets"]["cell_types"],
+            gamma=config["aracne"]["targets"]["gammas"],
+        ),
+        expand(
+            "results/plots/ego/{cell_type}/gamma{gamma}/{gene}/ego_network.png",
+            cell_type=config["aracne"]["targets"]["cell_types"],
+            gamma=config["aracne"]["targets"]["gammas"],
+            gene=config["ego_networks"]["genes"],
         ),
 
 # Rule for demultiplexing
@@ -530,18 +547,199 @@ rule aracne_consolidate:
         """
 
 
+# NETWORK ANALYSIS
+# Tables (one job per network): results/net_analysis/{phenotype}/{cell_type}/gamma{gamma}/
+# Figures (one job per cell type and gamma, all phenotypes): results/plots/
+
+NET_PHENOTYPES = config["aracne"]["targets"]["phenotypes"]
+NET_ANALYSIS = "results/net_analysis/{phenotype}/{cell_type}/gamma{gamma}"
 
 
+# Centrality of every gene of one network (PageRank, degree, betweenness)
+rule network_metrics:
+    input:
+        network="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/network.txt",
+        utils="workflow/scripts/R/network_utils.R",
+    output:
+        metrics=f"{NET_ANALYSIS}/node_metrics.tsv",
+    log:
+        "logs/network_metrics/{phenotype}_{cell_type}_gamma{gamma}.log",
+    conda:
+        "envs/network_analysis.yaml"
+    threads: 1
+    script:
+        "scripts/11_network_metrics.R"
 
 
+# Network figures: one per phenotype plus a panel with all of them
+rule plot_networks:
+    input:
+        networks=expand(
+            "results/aracne/{phenotype}/{{cell_type}}/gamma{{gamma}}/network.txt",
+            phenotype=NET_PHENOTYPES,
+        ),
+        metrics=expand(
+            "results/net_analysis/{phenotype}/{{cell_type}}/gamma{{gamma}}/node_metrics.tsv",
+            phenotype=NET_PHENOTYPES,
+        ),
+        # Declared as input so that changing a color or font re-runs the plots
+        theme="workflow/scripts/R/theme_pub.R",
+        utils="workflow/scripts/R/network_utils.R",
+    output:
+        png=expand(
+            "results/plots/net_vis/{{cell_type}}/gamma{{gamma}}/{phenotype}_network.png",
+            phenotype=NET_PHENOTYPES,
+        ),
+        pdf=expand(
+            "results/plots/net_vis/{{cell_type}}/gamma{{gamma}}/{phenotype}_network.pdf",
+            phenotype=NET_PHENOTYPES,
+        ),
+        panel_png="results/plots/net_vis/{cell_type}/gamma{gamma}/panel_phenotypes.png",
+        panel_pdf="results/plots/net_vis/{cell_type}/gamma{gamma}/panel_phenotypes.pdf",
+    params:
+        # Same order as input.networks and input.metrics
+        phenotypes=NET_PHENOTYPES,
+        n_nodes=config["net_vis"]["n_nodes"],
+        n_hubs=config["net_vis"]["n_hubs"],
+        seed=config["net_vis"]["seed"],
+    log:
+        "logs/plot_networks/{cell_type}_gamma{gamma}.log",
+    conda:
+        "envs/network_analysis.yaml"
+    threads: 1
+    script:
+        "scripts/12_plot_networks.R"
 
 
+# Top hubs (PageRank) of every network, one panel per phenotype
+rule plot_top_hubs:
+    input:
+        metrics=expand(
+            "results/net_analysis/{phenotype}/{{cell_type}}/gamma{{gamma}}/node_metrics.tsv",
+            phenotype=NET_PHENOTYPES,
+        ),
+        theme="workflow/scripts/R/theme_pub.R",
+    output:
+        png="results/plots/hubs/{cell_type}/gamma{gamma}/top_hubs_pagerank.png",
+        pdf="results/plots/hubs/{cell_type}/gamma{gamma}/top_hubs_pagerank.pdf",
+    params:
+        # Same order as input.metrics
+        phenotypes=NET_PHENOTYPES,
+        top_n=config["hubs"]["top_n"],
+        highlight_genes=config["hubs"]["highlight_genes"],
+    log:
+        "logs/plot_top_hubs/{cell_type}_gamma{gamma}.log",
+    conda:
+        "envs/network_analysis.yaml"
+    threads: 1
+    script:
+        "scripts/13_plot_top_hubs.R"
 
 
+# Ego network of a gene of interest (config: ego_networks.genes) in one network:
+# neighbors, edges, metrics, genes up to analysis_order and bootstrap support
+rule ego_network:
+    input:
+        network="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/network.txt",
+        metrics=f"{NET_ANALYSIS}/node_metrics.tsv",
+        # Bootstrap networks of this phenotype: support of each edge of the gene
+        bootstraps=expand(
+            "results/aracne/{{phenotype}}/{{cell_type}}/gamma{{gamma}}/bootstrap_networks/bootstrapNetwork_seed{rep}.txt",
+            rep=range(1, config["aracne"]["bootstrap"]["n_boot"] + 1),
+        ),
+        utils="workflow/scripts/R/network_utils.R",
+    output:
+        neighbors=f"{NET_ANALYSIS}/ego/{{gene}}/neighbors.tsv",
+        edges=f"{NET_ANALYSIS}/ego/{{gene}}/edges.tsv",
+        members=f"{NET_ANALYSIS}/ego/{{gene}}/members.tsv",
+        metrics=f"{NET_ANALYSIS}/ego/{{gene}}/metrics.tsv",
+        support=f"{NET_ANALYSIS}/ego/{{gene}}/bootstrap_support.tsv",
+    params:
+        analysis_order=config["ego_networks"]["analysis_order"],
+    log:
+        "logs/ego_network/{phenotype}_{cell_type}_gamma{gamma}_{gene}.log",
+    conda:
+        "envs/network_analysis.yaml"
+    threads: 1
+    script:
+        "scripts/14_ego_network.R"
 
 
+# GO enrichment of the ego network genes of one network.
+# Universe: all genes of the matrix given to ARACNe for that phenotype
+rule ego_enrichment:
+    input:
+        members=f"{NET_ANALYSIS}/ego/{{gene}}/members.tsv",
+        universe="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/centroids.txt",
+    output:
+        table=f"{NET_ANALYSIS}/ego/{{gene}}/go_enrichment.tsv",
+    params:
+        ont=config["ego_networks"]["enrichment"]["ont"],
+        min_gs_size=config["ego_networks"]["enrichment"]["min_gs_size"],
+        max_gs_size=config["ego_networks"]["enrichment"]["max_gs_size"],
+    log:
+        "logs/ego_enrichment/{phenotype}_{cell_type}_gamma{gamma}_{gene}.log",
+    conda:
+        "envs/enrichment.yaml"
+    threads: 1
+    script:
+        "scripts/15_ego_enrichment.R"
 
 
+# Tables of the ego network of all phenotypes (one file per phenotype)
+def ego_tables(name):
+    return expand(
+        "results/net_analysis/{phenotype}/{{cell_type}}/gamma{{gamma}}/ego/{{gene}}/" + name,
+        phenotype=NET_PHENOTYPES,
+    )
 
 
+# Ego network figures comparing phenotypes (network, neighbors, bootstrap support)
+rule plot_ego_network:
+    input:
+        # One file per phenotype, in the order of params.phenotypes
+        neighbors=ego_tables("neighbors.tsv"),
+        edges=ego_tables("edges.tsv"),
+        metrics=ego_tables("metrics.tsv"),
+        support=ego_tables("bootstrap_support.tsv"),
+        theme="workflow/scripts/R/theme_pub.R",
+    output:
+        network_png="results/plots/ego/{cell_type}/gamma{gamma}/{gene}/ego_network.png",
+        network_pdf="results/plots/ego/{cell_type}/gamma{gamma}/{gene}/ego_network.pdf",
+        neighbors_png="results/plots/ego/{cell_type}/gamma{gamma}/{gene}/ego_neighbors.png",
+        neighbors_pdf="results/plots/ego/{cell_type}/gamma{gamma}/{gene}/ego_neighbors.pdf",
+        support_png="results/plots/ego/{cell_type}/gamma{gamma}/{gene}/bootstrap_support.png",
+        support_pdf="results/plots/ego/{cell_type}/gamma{gamma}/{gene}/bootstrap_support.pdf",
+    params:
+        phenotypes=NET_PHENOTYPES,
+        top_support=config["ego_networks"]["top_support"],
+        seed=config["ego_networks"]["seed"],
+    log:
+        "logs/plot_ego_network/{cell_type}_gamma{gamma}_{gene}.log",
+    conda:
+        "envs/network_analysis.yaml"
+    threads: 1
+    script:
+        "scripts/16_plot_ego_network.R"
 
+
+# GO enrichment figure of the ego network, comparing phenotypes
+rule plot_ego_enrichment:
+    input:
+        go=ego_tables("go_enrichment.tsv"),
+        theme="workflow/scripts/R/theme_pub.R",
+    output:
+        png="results/plots/ego/{cell_type}/gamma{gamma}/{gene}/go_enrichment.png",
+        pdf="results/plots/ego/{cell_type}/gamma{gamma}/{gene}/go_enrichment.pdf",
+    params:
+        # Same order as input.go
+        phenotypes=NET_PHENOTYPES,
+        padj_cutoff=config["ego_networks"]["enrichment"]["padj_cutoff"],
+        top_terms=config["ego_networks"]["enrichment"]["top_terms"],
+    log:
+        "logs/plot_ego_enrichment/{cell_type}_gamma{gamma}_{gene}.log",
+    conda:
+        "envs/enrichment.yaml"
+    threads: 1
+    script:
+        "scripts/17_plot_ego_enrichment.R"

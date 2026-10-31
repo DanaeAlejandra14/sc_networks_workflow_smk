@@ -65,6 +65,12 @@ rule all:
             gamma=config["aracne"]["targets"]["gammas"],
             gene=config["ego_networks"]["genes"],
         ),
+        expand(
+            "results/plots/proximity/{cell_type}/gamma{gamma}/{gene}/proximity.png",
+            cell_type=config["aracne"]["targets"]["cell_types"],
+            gamma=config["aracne"]["targets"]["gammas"],
+            gene=config["ego_networks"]["genes"],
+        ),
 
 # Rule for demultiplexing
 
@@ -743,3 +749,57 @@ rule plot_ego_enrichment:
     threads: 1
     script:
         "scripts/17_plot_ego_enrichment.R"
+
+
+# Network proximity of a gene of interest to predefined gene sets
+# (config proximity.gene_sets), in the final network and in each bootstrap network
+rule network_proximity:
+    input:
+        network="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/network.txt",
+        bootstraps=expand(
+            "results/aracne/{{phenotype}}/{{cell_type}}/gamma{{gamma}}/bootstrap_networks/bootstrapNetwork_seed{rep}.txt",
+            rep=range(1, config["aracne"]["bootstrap"]["n_boot"] + 1),
+        ),
+        utils="workflow/scripts/R/network_utils.R",
+    output:
+        table=f"{NET_ANALYSIS}/proximity/{{gene}}/proximity.tsv",
+    params:
+        gene_sets=config["proximity"]["gene_sets"],
+        n_random_sources=config["proximity"]["n_random_sources"],
+        n_random_sets=config["proximity"]["n_random_sets"],
+        bin_size=config["proximity"]["bin_size"],
+        seed=config["proximity"]["seed"],
+    log:
+        "logs/network_proximity/{phenotype}_{cell_type}_gamma{gamma}_{gene}.log",
+    conda:
+        "envs/network_analysis.yaml"
+    threads: 1
+    script:
+        "scripts/18_network_proximity.R"
+
+
+# Differential proximity: phenotypes compared with the reference phenotype
+rule plot_proximity:
+    input:
+        tables=expand(
+            "results/net_analysis/{phenotype}/{{cell_type}}/gamma{{gamma}}/proximity/{{gene}}/proximity.tsv",
+            phenotype=NET_PHENOTYPES,
+        ),
+        theme="workflow/scripts/R/theme_pub.R",
+    output:
+        png="results/plots/proximity/{cell_type}/gamma{gamma}/{gene}/proximity.png",
+        pdf="results/plots/proximity/{cell_type}/gamma{gamma}/{gene}/proximity.pdf",
+        png_vertical="results/plots/proximity/{cell_type}/gamma{gamma}/{gene}/proximity_vertical.png",
+        pdf_vertical="results/plots/proximity/{cell_type}/gamma{gamma}/{gene}/proximity_vertical.pdf",
+        # Comparison across phenotypes: it has no phenotype folder of its own
+        table="results/net_analysis/comparisons/{cell_type}/gamma{gamma}/proximity/{gene}/differential_proximity.tsv",
+    params:
+        phenotypes=NET_PHENOTYPES,
+        reference=config["proximity"]["reference"],
+    log:
+        "logs/plot_proximity/{cell_type}_gamma{gamma}_{gene}.log",
+    conda:
+        "envs/network_analysis.yaml"
+    threads: 1
+    script:
+        "scripts/19_plot_proximity.R"

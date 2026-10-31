@@ -124,3 +124,32 @@ ego_networks:
     top_terms: 5        # terminos significativos mostrados por fenotipo
     min_gs_size: 10     # tamano minimo de los terminos GO probados
     max_gs_size: 500    # tamano maximo de los terminos GO probados
+
+# Cercania diferencial (rules network_proximity, plot_proximity)
+# Distancia en la red de cada gen de ego_networks.genes a conjuntos de genes,
+# comparada con genes al azar de grado parecido (z < 0 = mas cerca que el azar).
+# Los conjuntos se definen a priori desde la literatura, NO a partir de los
+# vecinos encontrados en las redes (seria circular). Revisarlos antes de reportar.
+proximity:
+  reference: "control"    # fenotipo contra el que se comparan los demas
+  n_random_sources: 100   # genes de origen al azar (una busqueda de caminos cada uno)
+  n_random_sets: 10       # conjuntos al azar por origen (azar total = 100 x 10)
+  bin_size: 100           # genes minimos por grupo de grado para el emparejamiento
+  seed: 42
+  gene_sets:
+    # Riesgo genetico de Alzheimer: genes cercanos a loci GWAS (Bellenguez et al.
+    # 2022, Nat Genet) + genes de Alzheimer familiar
+    ad_risk: ["APOE", "BIN1", "CLU", "ABCA7", "CR1", "PICALM", "MS4A6A", "CD2AP",
+              "EPHA1", "PTK2B", "SORL1", "SLC24A4", "ABI3", "PLCG2", "TREM2",
+              "SPI1", "ADAM10", "APH1B", "ACE", "ADAMTS4", "CASS4", "FERMT2",
+              "INPP5D", "MEF2C", "WWOX", "IQCK", "APP", "PSEN1", "PSEN2"]
+    # Ciclo glutamato-glutamina y manejo de glutamato en astrocitos (GO/KEGG)
+    glutamate_glutamine: ["SLC1A1", "SLC1A3", "GLUL", "GLS", "GLS2", "GLUD1",
+                          "GLUD2", "GOT1", "GOT2", "SLC38A1", "SLC38A2",
+                          "SLC38A3", "SLC38A5", "SLC7A11", "GRM3", "GRM5", "PC"]
+    # Astrocito reactivo: pan-reactivos y A1 (Liddelow et al. 2017, Nature),
+    # consenso (Escartin et al. 2021, Nat Neurosci) y DAA (Habib et al. 2020)
+    reactive_astrocyte: ["GFAP", "VIM", "CD44", "SERPINA3", "C3", "CHI3L1", "LCN2",
+                         "STEAP4", "S1PR3", "TIMP1", "HSPB1", "CXCL10", "OSMR",
+                         "CP", "SERPING1", "GBP2", "FKBP5", "PSMB8", "AMIGO2",
+                         "CTSB", "GSN", "STAT3", "MAOB"]

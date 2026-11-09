@@ -234,6 +234,10 @@ rule annotate_reference_batch:
         norm_dir="results/normalized/{library_batch}",
     output:
         annotated_dir=directory("results/annotated_reference/{library_batch}"),
+    params:
+        ref_batch=lambda wc: config["annotation"].get("library_alias", {}).get(
+        wc.library_batch, wc.library_batch
+        ),
     log:
         "logs/annotate_reference_batch/{library_batch}.log",
     conda:
@@ -458,6 +462,7 @@ rule export_aracne_matrix:
     threads: 1
     script:
         "scripts/10_export_aracne_matrices.R"
+
 
 #ARACNE
 

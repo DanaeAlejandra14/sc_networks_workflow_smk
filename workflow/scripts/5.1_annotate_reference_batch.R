@@ -8,6 +8,11 @@ batch_name <- snakemake@wildcards[["library_batch"]]
 norm_dir <- snakemake@input[["norm_dir"]]
 annotated_dir <- snakemake@output[["annotated_dir"]]
 
+
+# Name of this library in the authors' atlas. It comes from config$annotation$library_alias
+# (via the rule params). If the library has no alias, it is the same as batch_name.
+ref_batch <- snakemake@params[["ref_batch"]]
+
 reference_csv <- snakemake@config[["annotation"]][["reference_csv"]]
 
 dir.create(annotated_dir, recursive = TRUE, showWarnings = FALSE)

@@ -23,7 +23,16 @@ annotation:
   celltypist_model: resources/Adult_Human_PrefrontalCortex.pkl
   majority_voting: true
   min_prob: 0.6
-
+  # Library name in our pipeline -> batch name in the authors' atlas
+  library_alias:
+    "191122-B6-R1710143-alone": "MAP84653463"
+    "191122-B6-R1969233-alone": "MAP43074402"
+    "191122-B6-R4078277-alone": "MAP77143621"
+    "191122-B6-R4388056-alone": "MAP50104134"
+    "191122-B6-R6622577-alone": "MAP72650337"
+    "191122-B6-R7090624-alone": "MAP60725338"
+    "191122-B6-R7641350-alone": "MAP50109927"
+    "191122-B6-R9101940-alone": "MAP36492755"
 # Etratificación de los pacientes en grupos de control y AD según los criterios de neuropatología y cognición.
 phenotype:
   clinical_csv: resources/ROSMAP_clinical.csv

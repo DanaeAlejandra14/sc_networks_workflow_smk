@@ -83,7 +83,8 @@ write_tsv(edges_tab, out[["edges"]])
 # Genes up to analysis_order
 if (in_net) {
   ego_nodes <- ego(g, order = analysis_order, nodes = ego_gene)[[1]]
-  d <- distances(g, v = ego_gene, to = ego_nodes)
+  # weights = NA: count edges (igraph would otherwise use the MI weights)
+  d <- distances(g, v = ego_gene, to = ego_nodes, weights = NA)
   members <- data.frame(phenotype = phenotype, gene = colnames(d), order = as.integer(d[1, ]))
 } else {
   members <- data.frame(phenotype = character(0), gene = character(0), order = integer(0))

@@ -1,0 +1,88 @@
+An object of class Seurat 
+36601 features across 1965 samples within 1 assay 
+Active assay: RNA (36601 features, 0 variable features)
+ 2 layers present: counts, data
+ [1] "orig.ident"          "nCount_RNA"          "nFeature_RNA"       
+ [4] "batch"               "libraryBatch"        "individualID"       
+ [7] "phenotype_label"     "percent.mt"          "scDblFinder.class"  
+[10] "scDblFinder.score"   "cell_type"           "cell_state"         
+[13] "celltypist_label"    "celltypist_simple"   "celltypist_max_prob"
+[16] "celltypist_margin"   "annotation_source"  
+                    orig.ident nCount_RNA nFeature_RNA       batch libraryBatch
+ACCAAACGTTATTCTC-1 190403-B4-A      62788         9351 190403-B4-A  190403-B4-A
+CCTCACATCACCGGTG-1 190403-B4-A      52072         8979 190403-B4-A  190403-B4-A
+TTACGCCTCCATACTT-1 190403-B4-A      41026         7454 190403-B4-A  190403-B4-A
+GACTCAACATTACTCT-1 190403-B4-A      38007         6948 190403-B4-A  190403-B4-A
+CCGTGAGCATCCTCAC-1 190403-B4-A      36014         7522 190403-B4-A  190403-B4-A
+GCATCGGTCAATCTTC-1 190403-B4-A      35672         8004 190403-B4-A  190403-B4-A
+GATCATGAGCCATGCC-1 190403-B4-A      34737         7676 190403-B4-A  190403-B4-A
+TTATTGCTCTAACACG-1 190403-B4-A      34422         7395 190403-B4-A  190403-B4-A
+AACTTCTCAGCTACAT-1 190403-B4-A      33965         6822 190403-B4-A  190403-B4-A
+AACCACAGTGATTGGG-1 190403-B4-A      33788         8274 190403-B4-A  190403-B4-A
+                   individualID phenotype_label  percent.mt scDblFinder.class
+ACCAAACGTTATTCTC-1     R1743384         control 0.000000000           singlet
+CCTCACATCACCGGTG-1     R1743384         control 0.001920418           singlet
+TTACGCCTCCATACTT-1     R1743384         control 0.000000000           singlet
+GACTCAACATTACTCT-1     R1743384         control 0.018417660           singlet
+CCGTGAGCATCCTCAC-1     R1743384         control 0.000000000           singlet
+GCATCGGTCAATCTTC-1     R1743384         control 0.000000000           singlet
+GATCATGAGCCATGCC-1     R1743384         control 0.000000000           singlet
+TTATTGCTCTAACACG-1     R1743384         control 0.002905119           singlet
+AACTTCTCAGCTACAT-1     R1743384         control 0.000000000           singlet
+AACCACAGTGATTGGG-1     R1743384         control 2.536403457           singlet
+                   scDblFinder.score          cell_type cell_state
+ACCAAACGTTATTCTC-1         0.1878640 Excitatory Neurons      Exc.5
+CCTCACATCACCGGTG-1         0.1465753 Excitatory Neurons      Exc.5
+TTACGCCTCCATACTT-1         0.2078080 Excitatory Neurons      Exc.6
+GACTCAACATTACTCT-1         0.3714972 Excitatory Neurons     Exc.13
+CCGTGAGCATCCTCAC-1         0.1124709 Excitatory Neurons      Exc.5
+GCATCGGTCAATCTTC-1         0.3872670 Excitatory Neurons      Exc.5
+GATCATGAGCCATGCC-1         0.2562901 Excitatory Neurons      Exc.5
+TTATTGCTCTAACACG-1         0.1705792 Excitatory Neurons      Exc.5
+AACTTCTCAGCTACAT-1         0.2360926 Excitatory Neurons      Exc.5
+AACCACAGTGATTGGG-1         0.2540088 Excitatory Neurons      Exc.3
+                   celltypist_label celltypist_simple celltypist_max_prob
+ACCAAACGTTATTCTC-1             <NA>              <NA>                  NA
+CCTCACATCACCGGTG-1             <NA>              <NA>                  NA
+TTACGCCTCCATACTT-1             <NA>              <NA>                  NA
+GACTCAACATTACTCT-1             <NA>              <NA>                  NA
+CCGTGAGCATCCTCAC-1             <NA>              <NA>                  NA
+GCATCGGTCAATCTTC-1             <NA>              <NA>                  NA
+GATCATGAGCCATGCC-1             <NA>              <NA>                  NA
+TTATTGCTCTAACACG-1             <NA>              <NA>                  NA
+AACTTCTCAGCTACAT-1             <NA>              <NA>                  NA
+AACCACAGTGATTGGG-1             <NA>              <NA>                  NA
+                   celltypist_margin annotation_source
+ACCAAACGTTATTCTC-1                NA          original
+CCTCACATCACCGGTG-1                NA          original
+TTACGCCTCCATACTT-1                NA          original
+GACTCAACATTACTCT-1                NA          original
+CCGTGAGCATCCTCAC-1                NA          original
+GCATCGGTCAATCTTC-1                NA          original
+GATCATGAGCCATGCC-1                NA          original
+TTATTGCTCTAACACG-1                NA          original
+AACTTCTCAGCTACAT-1                NA          original
+AACCACAGTGATTGGG-1                NA          original
+
+         Astrocyte        Endothelial       Erythrocytes Excitatory Neurons 
+               336                 59                  1                831 
+        Fibroblast             Immune Inhibitory Neurons        Macrophages 
+                 1                 16                378                  1 
+         Microglia          Monocytes   Oligodendrocytes               OPCs 
+                 8                  1                134                 74 
+         Pericytes               <NA> 
+                 1                124 
+[1] 93.68957
+
+         Astrocyte        Endothelial       Erythrocytes Excitatory Neurons 
+               336                 59                  1                831 
+        Fibroblast             Immune Inhibitory Neurons        Macrophages 
+                 1                 16                378                  1 
+         Microglia          Monocytes   Oligodendrocytes               OPCs 
+                 8                  1                134                 74 
+         Pericytes               <NA> 
+                 1                124 
+
+celltypist   original unassigned 
+       140       1701        124 
+[1] "ACCAAACGTTATTCTC-1" "CCTCACATCACCGGTG-1" "TTACGCCTCCATACTT-1"

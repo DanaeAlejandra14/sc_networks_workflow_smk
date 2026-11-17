@@ -139,7 +139,7 @@ aracne:
 
   # Bootstraps 
   bootstrap:
-    n_boot: 3                 # piloto; subir a 100 para la corrida final
+    n_boot: 2               # piloto; subir a 100 para la corrida final
     threads: 4                   # hilos por bootstrap
 
   # Memoria por paso (GB)

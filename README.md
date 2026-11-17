@@ -50,6 +50,11 @@ Building is a one-time step. It needs a JDK (newer than 1.8) and Apache Ant, bot
 conda env create -f workflow/envs/aracne.yaml
 conda activate aracne
 
+
+make sure your are in sc_networks_workflow_smk/resources/tools or create with
+"mkdir -p ~/sc_networks_workflow_smk/resources/tools"
+
+
 git clone https://github.com/califano-lab/ARACNe-AP.git
 cd ARACNe-AP
 ant main                      # produces dist/aracne.jar
@@ -60,8 +65,42 @@ cp ARACNe-AP/dist/aracne.jar resources/tools/aracne.jar
 conda deactivate
 ```
 
-### Check the installation
+
+
+```bash
+# 1. Create the environment (Java + Ant) and activate it
+conda env create -f workflow/envs/aracne.yaml
+conda activate aracne
+
+# 2. Go to the tools folder (from the project root; create it if needed)
+mkdir -p resources/tools
+cd resources/tools
+
+# 3. Download and build ARACNe-AP
+git clone https://github.com/califano-lab/ARACNe-AP.git
+cd ARACNe-AP
+ant main
+
+# 4. Copy the JAR where the pipeline expects it and go back to the project root
+cp dist/aracne.jar ../aracne.jar
+cd ../../..
+```
+
+# 5. Check the installation
+
+From the project root:
+~/sc_networks_workflow_smk$
 
 ```bash
 ls -lh resources/tools/aracne.jar
+
+java -Xmx2G -jar resources/tools/aracne.jar \
+  -e resources/tools/ARACNe-AP/test/matrix.txt \
+  -o /tmp/aracne_test \
+  --tfs resources/tools/ARACNe-AP/test/tfs.txt \
+  --pvalue 1E-8 --seed 1 --calculateThreshold
+
+ls /tmp/aracne_test
 ```
+
+It should print `MI threshold: ...` and create `miThreshold_p1E-8_samples200.txt`.

@@ -4,13 +4,17 @@ channels:
   - bioconda
 dependencies:
   - snakemake-minimal
-  - python=3.10
+  #- python=3.10
+  - snakemake-minimal>=9
+  - python=3.11
   - numpy=1.26
   - pandas=2.2
-  - scipy
+  - scipy=1.13.1
   - scikit-learn
   - anndata=0.10.9
   - scanpy=1.10.4
   - pip
+  - pynndescent=0.5.13
+  - umap-learn=0.5.6
   - pip:
       - celltypist

@@ -372,11 +372,101 @@ rule integrate_phenotype_celltype:
     script:
         "scripts/8_integrate_phenotype_celltype.R"
 
+
+# Subsample every phenotype of one cell type to the size of the smallest one
+rule subsample_phenotype_celltype:
+    input:
+        integrated=expand(
+            "results/phenotype/{phenotype}/{{cell_type}}/integrated.rds",
+            phenotype=config["subsample"]["targets"]["phenotypes"],
+        ),
+    output:
+        subsampled=expand(
+            "results/phenotype/{phenotype}/{{cell_type}}/subsampled.rds",
+            phenotype=config["subsample"]["targets"]["phenotypes"],
+        ),
+        report="results/phenotype/{cell_type}/subsample_report.tsv",
+    params:
+        phenotypes=config["subsample"]["targets"]["phenotypes"],
+        donor_col=config["subsample"]["donor_col"],
+        seed=config["subsample"]["seed"],
+        min_cells_warn=config["subsample"]["min_cells_warn"],
+    log:
+        "logs/subsample_phenotype_celltype/{cell_type}.log",
+    conda:
+        "envs/seurat_demultiplexing.yaml"
+    threads: 2
+    script:
+        "scripts/8.1_subsample_to_min.R"
+
+
+# Sparsity vs gamma analysis. It does not feed the rest of the workflow: it only
+# produces the figure and the tables to choose the gamma by hand.
+# Assumes PHENOTYPES and CELL_TYPES already exist in the Snakefile.
+
+# One curve per phenotype x cell type (reads the subsampled object)
+rule sparsity_curve:
+    input:
+        subsampled="results/phenotype/{phenotype}/{cell_type}/subsampled.rds",
+    output:
+        curve="results/qc/sparsity_vs_gamma/curves/{phenotype}/{cell_type}.tsv",
+    params:
+        k_knn=config["supercell"]["k_knn"],
+        n_pc=config["supercell"]["n_pc"],
+        do_approx=config["supercell"]["do_approx"],
+        approx_n=config["supercell"]["approx_n"],
+        seed=config["supercell"]["seed"],
+        reduction=config["supercell"]["reduction"],
+        min_frac_expressed=config["aracne"]["matrix"]["min_frac_expressed"],
+        gamma_min=config["sparsity_scan"]["gamma_min"],
+        gamma_max=config["sparsity_scan"]["gamma_max"],
+        gamma_step=config["sparsity_scan"]["gamma_step"],
+    log:
+        "logs/sparsity_curve/{phenotype}_{cell_type}.log",
+    conda:
+        "envs/supercell.yaml"
+    threads: 2
+    script:
+        "scripts/8.2_sparsity_curve.R"
+
+
+# Figure (phenotypes x cell types) and tables
+rule sparsity_report:
+    input:
+        curves=expand(
+            "results/qc/sparsity_vs_gamma/curves/{phenotype}/{cell_type}.tsv",
+            phenotype=PHENOTYPES,
+            cell_type=CELL_TYPES,
+        ),
+    output:
+        png="results/qc/sparsity_vs_gamma/sparsity_vs_gamma.png",
+        pdf="results/qc/sparsity_vs_gamma/sparsity_vs_gamma.pdf",
+        curves_csv="results/qc/sparsity_vs_gamma/sparsity_vs_gamma_all.csv",
+        levels_csv="results/qc/sparsity_vs_gamma/gamma_for_sparsity_levels.csv",
+        suggested_csv="results/qc/sparsity_vs_gamma/suggested_gamma_per_cell_type.csv",
+        fits_csv="results/qc/sparsity_vs_gamma/sparsity_vs_gamma_fits.csv",
+    params:
+        target_sparsity=config["sparsity_scan"]["target_sparsity"],
+        reference_gamma=config["sparsity_scan"]["reference_gamma"],
+        sparsity_levels=config["sparsity_scan"]["sparsity_levels"],
+        min_frac_expressed=config["aracne"]["matrix"]["min_frac_expressed"],
+    log:
+        "logs/sparsity_report/sparsity_report.log",
+    conda:
+        "envs/supercell.yaml"
+    threads: 1
+    script:
+        "scripts/8.3_sparsity_report.R"
+
+
+
+
 #Super cell  1-build with different gamma 
 rule build_supercell:
     input:
-        integrated="results/phenotype/{phenotype}/{cell_type}/integrated.rds",
+        integrated="results/phenotype/{phenotype}/{cell_type}/subsampled.rds",
     output:
+    
         "results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}.rds",
         summary = "results/supercell/{phenotype}/{cell_type}/summary_gamma{gamma}.csv",
     params:

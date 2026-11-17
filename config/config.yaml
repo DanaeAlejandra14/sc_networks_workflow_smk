@@ -3,7 +3,7 @@ mapping_csv: resources/ROSMAP_snRNAseq_demultiplexed_ID_mapping.csv
 qc:
   min_features_per_cell: 700
   min_counts_per_cell: 1500
-  max_pct_mito: 13
+  max_pct_mito: 8  
 
 doublet_detection:
   seed: 42
@@ -59,21 +59,73 @@ cell_type:
     - "OPCs"
     - "Microglia"
 
-#Super cell
+#Subsample to min
 
-supercell: #Falta una descripció pequeña de cada parametro 
-  gammas: [10, 20]
+subsample:
+  donor_col: "individualID"
+  seed: 42
+  min_cells_warn: 100   # solo aviso en el reporte, no filtra
+  # Define en QUE fenotipos y tipos celulares se submuestrea.
+  # N se calcula como el minimo entre los fenotipos de esta lista.
+  targets:
+    phenotypes: ["AD-NC_ASYM", "AD-NC_SYM", "MCI", "control"]
+    cell_types: ["Astrocyte"]
+
+
+#Gamma vs Sparisisty 
+# (genes detected in >= that fraction of the metacells); keep it at 0.1 as you decided.
+sparsity_scan:
+# Target sparsity of the ARACNe input matrix: horizontal dotted line of each cell type
+  # (column of the figure) and the value used for the suggested gamma.
+  # A cell type that is not listed uses "default".
+  target_sparsity:
+    default: 0.40
+    Excitatory Neurons: 0.33
+    Inhibitory Neurons: 0.35
+    Oligodendrocytes: 0.40
+    OPCs: 0.40
+    Astrocyte: 0.45
+    Microglia: 0.40
+    Endothelial: 0.45
+    # VISUAL ONLY: vertical dotted line of each cell type (same for the 4 phenotypes).
+  reference_gamma:
+    default: 20
+    Excitatory Neurons: 20
+    Inhibitory Neurons: 20
+    Oligodendrocytes: 25
+    OPCs: 25
+    Astrocyte: 22
+    Microglia: 20
+    Endothelial: 18
+  gamma_min: 5
+  gamma_max: 60
+  gamma_step: 5
+  sparsity_levels: [0.2, 0.3, 0.4, 0.5, 0.6,0.7]
+
+#Super cell
+supercell: #Falta una descripción pequeña de cada parametro 
+  gamma_selected:
+    default: 20
+    Excitatory Neurons: 20
+    Inhibitory Neurons: 20
+    Oligodendrocytes: 25
+    OPCs: 25
+    Astrocyte: [20,30,40,50]
+    Microglia: 20
+    Endothelial: 18
   k_knn: 5
   n_pc: 30
   do_approx: false 
   approx_n: 0
   seed: 42 
   reduction: "harmony"
+  #available methods "walktrap" (default)
 
 supercell_plots:
   individual_col: "individualID"
   batch_col: "libraryBatch"
 
+# ARACNE !!!!
 aracne:
   # Red 
   pvalue: "1E-8"                 # umbral de informacion mutua (threshold)
@@ -83,11 +135,11 @@ aracne:
   #  Matriz de entrada 
   matrix:
     normalize: "none"         # "log_cpm" o "none"
-    min_frac_expressed: 0.1 #mejor dejarlo en 0.5     # genes expresados en >= 10% de las metacelulas
+    min_frac_expressed: 0.1   # genes expresados en >= 10% de las metacelulas
 
   # Bootstraps 
   bootstrap:
-    n_boot: 10                  # piloto; subir a 100 para la corrida final
+    n_boot: 3                 # piloto; subir a 100 para la corrida final
     threads: 4                   # hilos por bootstrap
 
   # Memoria por paso (GB)
@@ -98,13 +150,12 @@ aracne:
     threshold_gb: 5
     bootstrap_gb: 8
     consolidate_gb: 5
- # ── Corrida final (lo que pide `rule all`) ─────────────────
+# ── Corrida final (lo que pide `rule all`) ─────────────────
   # Define QUE redes se construyen cuando lanzas el pipeline sin objetivos.
   # Local: solo astrocitos, gamma 10. Servidor: ampliar las listas.
   targets:
     phenotypes: ["AD-NC_ASYM", "AD-NC_SYM", "MCI", "control"]
-    cell_types: ["Astrocyte"]
-    gammas: [10]
+    cell_types: ["Astrocyte" ]
 
 # ANALISIS DE REDES (se analizan las redes de aracne.targets)
 # Tablas:  results/net_analysis/{phenotype}/{cell_type}/gamma{gamma}/
@@ -162,3 +213,9 @@ proximity:
                          "STEAP4", "S1PR3", "TIMP1", "HSPB1", "CXCL10", "OSMR",
                          "CP", "SERPING1", "GBP2", "FKBP5", "PSMB8", "AMIGO2",
                          "CTSB", "GSN", "STAT3", "MAOB"]
+
+
+# Optional: similarity between the networks built with different gammas of the same cell type
+jaccard:
+  enabled: false              # true = rule all also asks for the Jaccard tables
+  top_edges: 0                # 0 = all edges; N = keep the N edges with highest MI of each network

@@ -1,4 +1,3 @@
-import argparse
 import sys
 
 import numpy as np
@@ -14,8 +13,11 @@ sys.stderr = log_file
 h5ad            = snakemake.input["h5ad"]
 model           = snakemake.params["model"]
 majority_voting = snakemake.params["majority_voting"]
-min_prob        = snakemake.params["min_prob"]
-out             = snakemake.output["predictions"]
+min_prob        = float(snakemake.params["min_prob"])
+out_path        = snakemake.output["predictions"]
+
+# The config can give majority_voting as a boolean (YAML true/false) or as a string
+majority_voting = str(majority_voting).lower() in ("true", "1", "yes")
 
 #this script runs CellTypist on a given h5ad file and saves the results to a CSV file.
 # It also simplifies the cell type labels into broader categories.
@@ -49,7 +51,7 @@ def compute_confidence(prob):
 
 def simplify_label(label):
     """
-    Map detailed CellTypist labels to broader categories for easier interpretation with my previous annotations. 
+    Map detailed CellTypist labels to broader categories for easier interpretation with my previous annotations.
     """
     s = str(label)
     if s.startswith(("L2", "L3", "L4", "L5", "L6")):
@@ -74,57 +76,46 @@ def simplify_label(label):
 def main():
     """
     Main function to run CellTypist on an h5ad file and save the results.
+    All settings come from the Snakemake rule (input, params, output) defined at the top.
+    - majority_voting: if the model supports it, the majority_voting column is used for the
+      final labels instead of the default predicted_labels (more robust, but slower).
+    - min_prob: confidence threshold. If the maximum predicted probability of a cell is below it,
+      the cell is labeled "Unassigned" instead of a specific cell type.
     """
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--h5ad", required=True)
-    parser.add_argument("--model", required=True)
-    parser.add_argument("--majority-voting", required=True)
-    ## If the model supports majority voting,
-    #this will use the majority_voting column for final labels instead of the default predicted_labels. 
-    # This can provide more robust predictions by considering multiple models or iterations, but it requires that the model was trained with majority voting enabled.
-    # If you want to use majority voting : False  is the default , 
-    parser.add_argument("--min-prob", required=True, type=float)
-     # This allows the user to set a confidence threshold for the predictions. 
-    # If the maximum predicted probability for a cell is below this threshold, the cell will be labeled as "Unassigned"
-    # instead of being assigned to a specific cell type. This can help improve the reliability of the annotations by filtering out low-confidence predictions.
-    parser.add_argument("--out", required=True)
-    args = parser.parse_args()
-
-    majority_voting = args.majority_voting.lower() in ("true", "1", "yes")
-
     print("PYTHON EXEC:", sys.executable)
-    print("Loading h5ad:", args.h5ad)
-    adata = ad.read_h5ad(args.h5ad)
+    print("Loading h5ad:", h5ad)
+    adata = ad.read_h5ad(h5ad)
     print("Cells:", adata.n_obs, "Genes:", adata.n_vars)
-    print("majority_voting =", majority_voting, "| min_prob =", args.min_prob)
+    print("majority_voting =", majority_voting, "| min_prob =", min_prob)
 
     # RUN CellTypist
-    print("Running CellTypist with model:", args.model)
-    pred = celltypist.annotate(adata, model=args.model, majority_voting=majority_voting)
+    print("Running CellTypist with model:", model)
+    pred = celltypist.annotate(adata, model=model, majority_voting=majority_voting)
     prob = pred.probability_matrix
     top1, margin = compute_confidence(prob)
 
     labels = pick_final_labels(pred, use_majority_voting=majority_voting).reindex(prob.index).astype(str)
     simple = labels.map(simplify_label)
 
-    if args.min_prob > 0:
-        low = top1 < args.min_prob # the probability we assigned in the argumnets, 
+    if min_prob > 0:
+        low = top1 < min_prob # the probability we assigned in the config,
         #if the max probability for a cell is below this threshold, we consider it low confidence
-        #.loc is used to selecct those cells with low confidence in a pandas series object
+        #.loc is used to select those cells with low confidence in a pandas series object
         labels.loc[low] = "Unassigned" # For low-confidence cells, we set the label to "Unassigned" instead of the predicted cell type
-        simple.loc[low] = "Unassigned" # # For low-confidence cells, we set the label to "Unassigned"
+        simple.loc[low] = "Unassigned"
 
-    out = pd.DataFrame({
+    out_df = pd.DataFrame({
         "cell": prob.index.astype(str),
         "celltypist_label": labels.values,
         "celltype_simple": simple.values,
         "max_prob": top1.values,
         "margin_top1_top2": margin.values,
     })
-    out.to_csv(args.out, index=False)
-    print("Saved:", args.out)
-    print(out["celltype_simple"].value_counts().head(20).to_string())
+    out_df.to_csv(out_path, index=False)
+    print("Saved:", out_path)
+    print(out_df["celltype_simple"].value_counts().head(20).to_string())
 
 
 if __name__ == "__main__":
     main()
+    log_file.flush()

@@ -27,8 +27,7 @@ gamma_wc     <- as.numeric(snakemake@wildcards[["gamma"]])
 
 integrated_path <- snakemake@input[["integrated"]]
 out_path        <- snakemake@output[[1]]
-vale 
-# All af this parameteres are set in the config.yaml file
+# All of this parameters are set in the config.yaml file
 k_knn          <- snakemake@params[["k_knn"]]
 n_pc           <- snakemake@params[["n_pc"]]
 do_approx      <- snakemake@params[["do_approx"]]

@@ -38,15 +38,17 @@ if (length(unique(obj$individualID)) < 2) {
 }
 
 #Plots before and after
-p_antes <- DimPlot(obj, reduction = "umap_before", group.by = "individualID") +
+p_before <- DimPlot(obj, reduction = "umap_before", group.by = "individualID") +
   ggtitle(paste0("Before (PCA)\n", phenotype_wc, " | ", cell_type_wc)) +
+  labs(x = "UMAP 1", y = "UMAP 2") +
   theme(legend.position = "none")
 
-p_despues <- DimPlot(obj, reduction = "umap_after", group.by = "individualID") +
+p_after <- DimPlot(obj, reduction = "umap_after", group.by = "individualID") +
   ggtitle(paste0("After (Harmony)\n", phenotype_wc, " | ", cell_type_wc)) +
+  labs(x = "UMAP 1", y = "UMAP 2") +
   theme(legend.position = "none")
 
-p_final <- p_antes | p_despues
+p_final <- p_before | p_after
 
 dir.create(dirname(plot_path), recursive = TRUE, showWarnings = FALSE)
 ggsave(plot_path, p_final, width = 12, height = 6, dpi = 150, bg = "white")

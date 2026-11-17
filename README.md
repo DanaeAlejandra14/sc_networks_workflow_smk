@@ -46,26 +46,6 @@ This path is set in `config/config.yaml` (`aracne.jar`). Note the lowercase file
 Building is a one-time step. It needs a JDK (newer than 1.8) and Apache Ant, both provided by
 `workflow/envs/aracne.yaml` (OpenJDK 11 and Ant):
 
-```bash
-conda env create -f workflow/envs/aracne.yaml
-conda activate aracne
-
-
-make sure your are in sc_networks_workflow_smk/resources/tools or create with
-"mkdir -p ~/sc_networks_workflow_smk/resources/tools"
-
-
-git clone https://github.com/califano-lab/ARACNe-AP.git
-cd ARACNe-AP
-ant main                      # produces dist/aracne.jar
-cd ..
-
-mkdir -p resources/tools
-cp ARACNe-AP/dist/aracne.jar resources/tools/aracne.jar
-conda deactivate
-```
-
-
 
 ```bash
 # 1. Create the environment (Java + Ant) and activate it

@@ -84,11 +84,11 @@ ant main
 # 4. Copy the JAR where the pipeline expects it and go back to the project root
 cp dist/aracne.jar ../aracne.jar
 cd ../../..
-```
 
-# 5. Check the installation
+# 5.Check the installation
 
 From the project root:
+
 ~/sc_networks_workflow_smk$
 
 ```bash

@@ -100,10 +100,7 @@ sparsity_scan:
   gamma_min: 5
   gamma_max: 60
   gamma_step: 5
-  sparsity_levels: [0.2, 0.3, 0.4, 0.5, 0.6]
-
-
-
+  sparsity_levels: [0.2, 0.3, 0.4, 0.5, 0.6,0.7]
 
 #Super cell
 supercell: #Falta una descripción pequeña de cada parametro 
@@ -111,11 +108,11 @@ supercell: #Falta una descripción pequeña de cada parametro
     default: 20
     Excitatory Neurons: 20
     Inhibitory Neurons: 20
-    Oligodendrocytes: 20
-    OPCs: 20
-    Astrocyte: 20
+    Oligodendrocytes: 25
+    OPCs: 25
+    Astrocyte: [20,30,40,50]
     Microglia: 20
-    Endothelial: 20
+    Endothelial: 18
   k_knn: 5
   n_pc: 30
   do_approx: false 
@@ -158,7 +155,7 @@ aracne:
   # Local: solo astrocitos, gamma 10. Servidor: ampliar las listas.
   targets:
     phenotypes: ["AD-NC_ASYM", "AD-NC_SYM", "MCI", "control"]
-    cell_types: ["Astrocyte"]
+    cell_types: ["Astrocyte" ]
 
 # ANALISIS DE REDES (se analizan las redes de aracne.targets)
 # Tablas:  results/net_analysis/{phenotype}/{cell_type}/gamma{gamma}/
@@ -216,3 +213,9 @@ proximity:
                          "STEAP4", "S1PR3", "TIMP1", "HSPB1", "CXCL10", "OSMR",
                          "CP", "SERPING1", "GBP2", "FKBP5", "PSMB8", "AMIGO2",
                          "CTSB", "GSN", "STAT3", "MAOB"]
+
+
+# Optional: similarity between the networks built with different gammas of the same cell type
+jaccard:
+  enabled: false              # true = rule all also asks for the Jaccard tables
+  top_edges: 0                # 0 = all edges; N = keep the N edges with highest MI of each network

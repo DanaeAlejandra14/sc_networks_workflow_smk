@@ -14,7 +14,6 @@ configfile: "config/config.yaml"
 # ","-> list 
 PHENOTYPES = config["phenotype"]["categories"]
 CELL_TYPES = config["cell_type"]["selected"]
-GAMMAS = [str(g) for g in config["supercell"]["gammas"]]
 
 wildcard_constraints:
     library_batch=r"[A-Za-z0-9_\-]+",
@@ -24,53 +23,66 @@ wildcard_constraints:
     gene=r"[A-Za-z0-9_.\-]+",
 
 # una secuencia de uno o más caracteres, donde cada uno es letra, número, guion bajo o guion medio — nada más
+
+#funcion para antes de rule all 
+def gammas_for(cell_type):
+    # gammas of a cell type: accepts a single number or a list in config
+    g = config["supercell"]["gamma_selected"]
+    v = g.get(cell_type, g["default"])
+    return v if isinstance(v, list) else [v]
+
 rule all:
     input:
-        #"results/qc_reports/qc_summary_all.csv",
-        "results/annotation_plots/combined_umap_celltype.png",
-        #"results/doublet_reports/doublet_summary_all.csv",
         "results/annotation_plots/combined_umap_celltype.png",
         "results/annotation_plots/combined_umap_source.png",
         "results/annotation_plots/combined_umap_batch.png",
         "results/annotation_diagnostics",
+        "results/plots/overview_cells_after_subsampling",
+
         expand(
             "results/plots/normalization/{library_batch}_counts_vs_data.png",
             library_batch=LIBRARY_BATCHES,
         ),
-        expand(
-            "results/aracne/{phenotype}/{cell_type}/gamma{gamma}/network.txt",
-            phenotype=config["aracne"]["targets"]["phenotypes"],
-            cell_type=config["aracne"]["targets"]["cell_types"],
-            gamma=config["aracne"]["targets"]["gammas"],
-        ),
-        expand(
-            "results/supercell_plots/{phenotype}/{cell_type}/gamma{gamma}",
-            phenotype=config["aracne"]["targets"]["phenotypes"],
-            cell_type=config["aracne"]["targets"]["cell_types"],
-            gamma=config["aracne"]["targets"]["gammas"],
-        ),
-        expand(
-            "results/plots/net_vis/{cell_type}/gamma{gamma}/panel_phenotypes.png",
-            cell_type=config["aracne"]["targets"]["cell_types"],
-            gamma=config["aracne"]["targets"]["gammas"],
-        ),
-        expand(
-            "results/plots/hubs/{cell_type}/gamma{gamma}/top_hubs_pagerank.png",
-            cell_type=config["aracne"]["targets"]["cell_types"],
-            gamma=config["aracne"]["targets"]["gammas"],
-        ),
-        expand(
-            "results/plots/ego/{cell_type}/gamma{gamma}/{gene}/ego_network.png",
-            cell_type=config["aracne"]["targets"]["cell_types"],
-            gamma=config["aracne"]["targets"]["gammas"],
-            gene=config["ego_networks"]["genes"],
-        ),
-        expand(
-            "results/plots/proximity/{cell_type}/gamma{gamma}/{gene}/proximity.png",
-            cell_type=config["aracne"]["targets"]["cell_types"],
-            gamma=config["aracne"]["targets"]["gammas"],
-            gene=config["ego_networks"]["genes"],
-        ),
+        # ARACNe networks
+        [
+            f"results/aracne/{p}/{c}/gamma{g}/network.txt"
+            for p in config["aracne"]["targets"]["phenotypes"]
+            for c in config["aracne"]["targets"]["cell_types"]
+            for g in gammas_for(c)
+        ],
+        # SuperCell QC plots
+        [
+            f"results/supercell_plots/{p}/{c}/gamma{g}"
+            for p in config["aracne"]["targets"]["phenotypes"]
+            for c in config["aracne"]["targets"]["cell_types"]
+            for g in gammas_for(c)
+        ],
+        # Network panels
+        [
+            f"results/plots/net_vis/{c}/gamma{g}/panel_phenotypes.png"
+            for c in config["aracne"]["targets"]["cell_types"]
+            for g in gammas_for(c)
+        ],
+        # Hubs
+        [
+            f"results/plots/hubs/{c}/gamma{g}/top_hubs_pagerank.png"
+            for c in config["aracne"]["targets"]["cell_types"]
+            for g in gammas_for(c)
+        ],
+        # Ego networks
+        [
+            f"results/plots/ego/{c}/gamma{g}/{gene}/ego_network.png"
+            for c in config["aracne"]["targets"]["cell_types"]
+            for g in gammas_for(c)
+            for gene in config["ego_networks"]["genes"]
+        ],
+        # Proximity
+        [
+            f"results/plots/proximity/{c}/gamma{g}/{gene}/proximity.png"
+            for c in config["aracne"]["targets"]["cell_types"]
+            for g in gammas_for(c)
+            for gene in config["ego_networks"]["genes"]
+        ],
 
 # Rule for demultiplexing
 
@@ -355,7 +367,6 @@ rule merge_phenotype_celltype:
     script:
         "scripts/7_merge_phenotype_celltype.R"
 
-
 #iNTEGRACION
 
 rule integrate_phenotype_celltype:
@@ -371,7 +382,6 @@ rule integrate_phenotype_celltype:
     threads: 4
     script:
         "scripts/8_integrate_phenotype_celltype.R"
-
 
 # Subsample every phenotype of one cell type to the size of the smallest one
 rule subsample_phenotype_celltype:
@@ -397,8 +407,30 @@ rule subsample_phenotype_celltype:
         "envs/seurat_demultiplexing.yaml"
     threads: 2
     script:
-        "scripts/8.1_subsample_to_min.R"
+        "scripts/8.2_subsample_to_min.R"
 
+
+# Overview of the cells per phenotype x cell type x donor AFTER subsampling
+rule overview_cells:
+    input:
+        objects=expand(
+            "results/phenotype/{phenotype}/{cell_type}/subsampled.rds",
+            phenotype=config["subsample"]["targets"]["phenotypes"],
+            cell_type=CELL_TYPES,
+        ),
+        theme="workflow/scripts/R/theme_pub.R",
+    output:
+        directory("results/plots/overview_cells_after_subsampling"),
+    params:
+        phenotypes=config["subsample"]["targets"]["phenotypes"],
+        cell_types=CELL_TYPES,
+    log:
+        "logs/overview_cells/overview_cells.log",
+    conda:
+        "envs/seurat_demultiplexing.yaml"   # must have tidyverse, patchwork and scales
+    threads: 1
+    script:
+        "scripts/8.2.1_overview_cells.R"
 
 # Sparsity vs gamma analysis. It does not feed the rest of the workflow: it only
 # produces the figure and the tables to choose the gamma by hand.
@@ -427,7 +459,7 @@ rule sparsity_curve:
         "envs/supercell.yaml"
     threads: 2
     script:
-        "scripts/8.2_sparsity_curve.R"
+        "scripts/8.3_sparsity_curve.R"
 
 
 # Figure (phenotypes x cell types) and tables
@@ -456,9 +488,7 @@ rule sparsity_report:
         "envs/supercell.yaml"
     threads: 1
     script:
-        "scripts/8.3_sparsity_report.R"
-
-
+        "scripts/8.3.1_sparsity_report.R"
 
 
 #Super cell  1-build with different gamma 
@@ -466,7 +496,6 @@ rule build_supercell:
     input:
         integrated="results/phenotype/{phenotype}/{cell_type}/subsampled.rds",
     output:
-    
         "results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}.rds",
         summary = "results/supercell/{phenotype}/{cell_type}/summary_gamma{gamma}.csv",
     params:
@@ -487,12 +516,12 @@ rule build_supercell:
 
 rule aggregate_supercell_summary:
     input:
-        expand(
-            "results/supercell/{phenotype}/{cell_type}/summary_gamma{gamma}.csv",
-            phenotype=PHENOTYPES,
-            cell_type=CELL_TYPES,
-            gamma=GAMMAS,
-        ),
+        [
+            f"results/supercell/{p}/{c}/summary_gamma{g}.csv"
+            for p in config["aracne"]["targets"]["phenotypes"]
+            for c in config["aracne"]["targets"]["cell_types"]
+            for g in gammas_for(c)
+        ],
     output:
         "results/supercell/summary_all_gammas.csv",
     log:
@@ -504,7 +533,7 @@ rule aggregate_supercell_summary:
 
 rule compute_supercell_expression:
     input:
-        integrated="results/phenotype/{phenotype}/{cell_type}/integrated.rds",
+        integrated="results/phenotype/{phenotype}/{cell_type}/subsampled.rds",
         sc_rds="results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}.rds",
     output:
         "results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}_GE.rds",
@@ -518,15 +547,13 @@ rule compute_supercell_expression:
 
 rule plot_supercell_qc:
     input:
-        integrated="results/phenotype/{phenotype}/{cell_type}/integrated.rds",
+        integrated="results/phenotype/{phenotype}/{cell_type}/subsampled.rds",
         sc_rds="results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}.rds",
     output:
         directory("results/supercell_plots/{phenotype}/{cell_type}/gamma{gamma}"),
     params:
         individual_col=config["supercell_plots"]["individual_col"],
         batch_col=config["supercell_plots"]["batch_col"],
-    wildcard_constraints:
-        gamma=r"\d+",
     log:
         "logs/plot_supercell_qc/{phenotype}_{cell_type}_gamma{gamma}.log",
     conda:
@@ -574,11 +601,11 @@ rule aracne_threshold:
         "envs/aracne.yaml"
     shell:
         """
-        mkdir -p {output}
-        java -Xmx{resources.mem_gb}G -jar {input.jar} \
-            -e {input.matrix} -o {output} --tfs {input.genes} \
+        mkdir -p "{output}"
+        java -Xmx{resources.mem_gb}G -jar "{input.jar}" \
+            -e "{input.matrix}" -o "{output}" --tfs "{input.genes}" \
             --pvalue {params.pvalue} --seed 1 --calculateThreshold \
-            &> {log}
+            &> "{log}"
         """
 
 
@@ -609,16 +636,16 @@ rule aracne_bootstrap:
         "envs/aracne.yaml"
     shell:
         """
-        mkdir -p {output.work}
+        mkdir -p  "{output.work}"
         # ARACNe looks for the threshold file inside -o, so it must be copied there
-        cp {input.threshold}/miThreshold_*.txt {output.work}/
+        cp "{input.threshold}"/miThreshold_*.txt "{output.work}"/
         # Java heap 2 GB below the job's memory: the JVM uses memory outside the heap
-        java -Xmx$(({resources.mem_gb} - 2))G -jar {input.jar} \
-            -e {input.matrix} -o {output.work} --tfs {input.genes} \
+        java -Xmx$(({resources.mem_gb} - 2))G -jar "{input.jar}" \
+            -e "{input.matrix}" -o "{output.work}" --tfs "{input.genes}" \
             --pvalue {params.pvalue} --threads {threads} --seed {wildcards.rep} \
-            &> {log}
+            &> "{log}"
         # Each run writes exactly one bootstrapNetwork_*.txt; give it its fixed name
-        mv {output.work}/bootstrapNetwork_*.txt {output.network}
+        mv "{output.work}"/bootstrapNetwork_*.txt "{output.network}"
         """
 # ARACNe-AP. Step 3: consolidate the bootstraps. Output: network.txt
 rule aracne_consolidate:
@@ -642,10 +669,20 @@ rule aracne_consolidate:
         "envs/aracne.yaml"
     shell:
         """
-        java -Xmx$(({resources.mem_gb} - 2))G -jar {input.jar} \
-            -o $(dirname {output.consolidated}) --consolidate &> {log}
-        cp {output.consolidated} {output.network}
+        java -Xmx$(({resources.mem_gb} - 2))G -jar "{input.jar}" \
+            -o "$(dirname "{output.consolidated}")" --consolidate &> "{log}"
+        cp "{output.consolidated}" "{output.network}"
         """
+
+#temporary!
+
+rule test_networks:
+    input:
+        [
+            f"results/aracne/AD-NC_ASYM/{c}/gamma{g}/network.txt"
+            for c in CELL_TYPES
+            for g in gammas_for(c)
+        ],
 
 
 # NETWORK ANALYSIS
@@ -898,3 +935,29 @@ rule plot_proximity:
     threads: 1
     script:
         "scripts/19_plot_proximity.R"
+
+
+# Jaccard similarity between the networks of the different gammas of one cell type
+rule network_jaccard:
+    input:
+        networks=lambda wc: expand(
+            "results/aracne/{phenotype}/{cell_type}/gamma{gamma}/network.txt",
+            phenotype=wc.phenotype,
+            cell_type=wc.cell_type,
+            gamma=gammas_for(wc.cell_type),
+        ),
+    output:
+        jaccard="results/net_analysis/{phenotype}/{cell_type}/gamma_comparison/jaccard.tsv",
+        summary="results/net_analysis/{phenotype}/{cell_type}/gamma_comparison/networks_summary.tsv",
+        heatmap="results/net_analysis/{phenotype}/{cell_type}/gamma_comparison/jaccard_heatmap.png",
+    params:
+        gammas=lambda wc: gammas_for(wc.cell_type),   # same order as input.networks
+        common_genes=config.get("jaccard", {}).get("restrict_to_common_genes", True),
+        top_edges=config.get("jaccard", {}).get("top_edges", 0),
+    log:
+        "logs/network_jaccard/{phenotype}_{cell_type}.log",
+    conda:
+        "envs/network_analysis.yaml"
+    threads: 1
+    script:
+        "scripts/20_network_jaccard.R"

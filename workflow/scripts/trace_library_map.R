@@ -29,7 +29,7 @@ out_csv   <- if (length(args) >= 3) args[3] else "results/qc/library_alias_check
 map_pattern <- "^MAP[0-9]+$"
 n_probe <- 2000  # rows used to detect which column is which
 
-# ---------------------------------------------------------------- 1. Atlas ----
+#  1. Atlas 
 message("Reading atlas: ", atlas_csv)
 atlas <- readr::read_csv(atlas_csv, show_col_types = FALSE,
                          col_types = cols(.default = col_character()))
@@ -79,7 +79,7 @@ message("\nAtlas: ", nrow(atlas_batches), " batches in total, ",
 bad_map <- map_batches %>% filter(n_individuals != 1)
 message("MAP batches with more than one individual (expected 0): ", nrow(bad_map))
 
-# ------------------------------------------------------------- 2. Demux file --
+# 2. Demux file 
 message("\nReading demultiplexing file: ", demux_csv)
 demux <- readr::read_csv(demux_csv, show_col_types = FALSE)
 message("  columns: ", paste(names(demux), collapse = ", "))
@@ -112,7 +112,7 @@ message("Libraries in demux: ", nrow(lib_summary),
         " | found directly in the atlas: ", nrow(direct),
         " | NOT found (need an alias): ", nrow(targets))
 
-# ------------------------------------------------------------------ 3. Match ---
+#  3. Match 
 cand <- targets %>%
   left_join(map_batches %>% select(atlas_batch = batch, individualID, n_cells),
             by = "individualID")
@@ -137,7 +137,7 @@ res <- cand %>%
          id_in_name, name_matches_id, n_ind_lib, n_map_for_lib, n_lib_for_map, status) %>%
   arrange(status, library_batch)
 
-# ------------------------------------------------------------------ 4. Report --
+#  4. Report --
 message("\n=== Library -> atlas batch table ===")
 print(res %>% select(library_batch, atlas_batch, individualID, n_cells_atlas, status),
       n = Inf, width = Inf)

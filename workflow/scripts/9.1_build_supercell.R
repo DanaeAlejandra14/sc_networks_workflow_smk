@@ -23,7 +23,7 @@ suppressPackageStartupMessages(library(SuperCell))
 
 phenotype_wc <- snakemake@wildcards[["phenotype"]]
 cell_type_wc <- snakemake@wildcards[["cell_type"]]
-gamma_wc     <- as.numeric(snakemake@params[["gamma"]])
+gamma_wc     <- as.numeric(snakemake@wildcards[["gamma"]])
 
 integrated_path <- snakemake@input[["integrated"]]
 out_path        <- snakemake@output[[1]]

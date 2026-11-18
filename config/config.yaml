@@ -4,6 +4,9 @@ qc:
   min_features_per_cell: 700
   min_counts_per_cell: 1500
   max_pct_mito: 8  
+  # Especimenes con menos celulas que esto (antes o despues del QC) se descartan.
+  # El mapping asigna algunos barcodes sueltos a individuos en lotes donde no se cargaron (ej. 1 celula)
+  min_cells_per_specimen: 100
 
 doublet_detection:
   seed: 42

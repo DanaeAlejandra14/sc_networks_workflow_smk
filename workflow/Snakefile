@@ -143,6 +143,8 @@ rule qc_batch:
         qc_dir=directory("results/qc_filtered/{library_batch}"),  # directorio para guardar los archivos rds filtrados
         summary="results/qc_reports/{library_batch}_qc_summary.csv",  # archivo csv para guardar el resumen de QC
         cells="results/qc_reports/{library_batch}_qc_cells.csv",  # <- nuevo
+    params:
+        min_cells_per_specimen=config["qc"]["min_cells_per_specimen"],
     log:
         "logs/qc_batch/{library_batch}.log",
     conda:
@@ -597,6 +599,8 @@ rule aracne_threshold:
         mem_gb=config["aracne"]["memory"]["threshold_gb"],
     log:
         "logs/aracne/{phenotype}_{cell_type}_gamma{gamma}.threshold.log",
+    benchmark:
+        "benchmarks/aracne/{phenotype}_{cell_type}_gamma{gamma}.threshold.tsv",
     conda:
         "envs/aracne.yaml"
     shell:
@@ -632,6 +636,8 @@ rule aracne_bootstrap:
         mem_gb=config["aracne"]["memory"]["bootstrap_gb"],
     log:
         "logs/aracne/{phenotype}_{cell_type}_gamma{gamma}.bt_{rep}.log",
+    benchmark:
+        "benchmarks/aracne/{phenotype}_{cell_type}_gamma{gamma}.bt_{rep}.tsv",
     conda:
         "envs/aracne.yaml"
     shell:
@@ -665,6 +671,8 @@ rule aracne_consolidate:
         mem_gb=config["aracne"]["memory"]["consolidate_gb"],
     log:
         "logs/aracne/{phenotype}_{cell_type}_gamma{gamma}.consolidate.log",
+    benchmark:
+        "benchmarks/aracne/{phenotype}_{cell_type}_gamma{gamma}.consolidate.tsv",
     conda:
         "envs/aracne.yaml"
     shell:

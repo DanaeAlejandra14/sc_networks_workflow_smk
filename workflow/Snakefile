@@ -83,6 +83,12 @@ rule all:
             for g in gammas_for(c)
             for gene in config["ego_networks"]["genes"]
         ],
+                jaccard=[
+            f"results/net_analysis/{p}/{c}/gamma_comparison/jaccard.tsv"
+            for p in config["aracne"]["targets"]["phenotypes"]
+            for c in config["aracne"]["targets"]["cell_types"]
+            if config.get("jaccard", {}).get("enabled", False) and len(gammas_for(c)) > 1
+        ],
 
 # Rule for demultiplexing
 
@@ -981,10 +987,17 @@ rule network_jaccard:
             cell_type=wc.cell_type,
             gamma=gammas_for(wc.cell_type),
         ),
+        matrices=lambda wc: expand(
+            "results/aracne/{phenotype}/{cell_type}/gamma{gamma}/scmatrix.tsv",
+            phenotype=wc.phenotype,
+            cell_type=wc.cell_type,
+            gamma=gammas_for(wc.cell_type),
+        ),
     output:
         jaccard="results/net_analysis/{phenotype}/{cell_type}/gamma_comparison/jaccard.tsv",
         summary="results/net_analysis/{phenotype}/{cell_type}/gamma_comparison/networks_summary.tsv",
         heatmap="results/net_analysis/{phenotype}/{cell_type}/gamma_comparison/jaccard_heatmap.png",
+        heatmap_pdf="results/net_analysis/{phenotype}/{cell_type}/gamma_comparison/jaccard_heatmap.pdf",
     params:
         gammas=lambda wc: gammas_for(wc.cell_type),   # same order as input.networks
         common_genes=config.get("jaccard", {}).get("restrict_to_common_genes", True),

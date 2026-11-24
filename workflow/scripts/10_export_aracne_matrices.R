@@ -9,17 +9,22 @@ ge_rds    <- snakemake@input[["ge"]]
 out_mat   <- snakemake@output[["matrix"]]
 out_cent  <- snakemake@output[["centroids"]]
 normalize <- snakemake@params[["normalize"]]
-min_frac  <- snakemake@params[["min_frac_expressed"]]
+genes_txt <- snakemake@input[["genes"]]
 
 message("Reading: ", ge_rds)
 ge <- as.matrix(readRDS(ge_rds))
 message("Original dimensions (genes x metacells): ", paste(dim(ge), collapse = " x "))
 
-# Filter genes by the fraction of metacells with expression > 0 (computed on raw values)
-#Es necesario?
-keep <- rowMeans(ge > 0) >= min_frac
-ge <- ge[keep, , drop = FALSE]
-message("Genes after filtering (>= ", min_frac, " of metacells): ", nrow(ge))
+# Keep the gene set of this cell type (9.5_select_aracne_genes.R): the same genes in
+# every phenotype and gamma
+genes <- readLines(genes_txt)
+missing <- setdiff(genes, rownames(ge))
+if (length(missing) > 0) stop(length(missing), " selected genes are not in the matrix, e.g. ",
+                              paste(head(missing), collapse = ", "))
+ge <- ge[genes, , drop = FALSE]
+message("Genes kept (", basename(genes_txt), "): ", nrow(ge))
+n_const <- sum(apply(ge, 1, function(x) length(unique(x)) == 1))
+if (n_const > 0) message("WARNING: ", n_const, " gene(s) are constant across the metacells")
 
 # Normalization (if requested) is applied after the gene filter
 if (normalize == "log_cpm") {

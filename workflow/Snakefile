@@ -564,16 +564,43 @@ rule plot_supercell_qc:
     script:
         "scripts/9.4_supercell_plots.R"
 
+# Genes for ARACNe: one set per cell type, shared by all phenotypes and gammas.
+# Detected in >= min_frac_cells of the single cells, MT/ribosomal removed, then the
+# n_variable most variable (vst), on the subsampled cells of all phenotypes pooled
+rule select_aracne_genes:
+    input:
+        subsampled=expand(
+            "results/phenotype/{phenotype}/{{cell_type}}/subsampled.rds",
+            phenotype=config["subsample"]["targets"]["phenotypes"],
+        ),
+    output:
+        genes="results/aracne_genes/{cell_type}/genes.txt",
+        report="results/aracne_genes/{cell_type}/gene_selection.tsv",
+    params:
+        min_frac_cells=config["aracne"]["genes"]["min_frac_cells"],
+        n_variable=config["aracne"]["genes"]["n_variable"],
+        exclude_patterns=config["aracne"]["genes"]["exclude_patterns"],
+    resources:
+        mem_gb=40,
+    log:
+        "logs/select_aracne_genes/{cell_type}.log",
+    conda:
+        "envs/supercell.yaml"
+    threads: 1
+    script:
+        "scripts/9.5_select_aracne_genes.R"
+
+
 # Export matrices
 rule export_aracne_matrix:
     input:
         ge="results/supercell/{phenotype}/{cell_type}/SC_gamma{gamma}_GE.rds",
+        genes="results/aracne_genes/{cell_type}/genes.txt",
     output:
         matrix="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/scmatrix.tsv",
         centroids="results/aracne/{phenotype}/{cell_type}/gamma{gamma}/centroids.txt",
     params:
         normalize=config["aracne"]["matrix"]["normalize"],
-        min_frac_expressed=config["aracne"]["matrix"]["min_frac_expressed"],
     log:
         "logs/export_aracne_matrix/{phenotype}_{cell_type}_gamma{gamma}.log",
     conda:

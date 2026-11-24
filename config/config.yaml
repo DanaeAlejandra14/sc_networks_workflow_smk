@@ -101,7 +101,7 @@ sparsity_scan:
     Microglia: 20
     Endothelial: 18
   gamma_min: 5
-  gamma_max: 60
+  gamma_max: 80
   gamma_step: 5
   sparsity_levels: [0.2, 0.3, 0.4, 0.5, 0.6,0.7]
 
@@ -113,7 +113,7 @@ supercell: #Falta una descripción pequeña de cada parametro
     Inhibitory Neurons: 20
     Oligodendrocytes: 25
     OPCs: 25
-    Astrocyte: [20,30,40,50]
+    Astrocyte: [60, 70, 80]
     Microglia: 20
     Endothelial: 18
   k_knn: 5
@@ -138,12 +138,31 @@ aracne:
   #  Matriz de entrada 
   matrix:
     normalize: "none"         # "log_cpm" o "none"
-    min_frac_expressed: 0.1   # genes expresados en >= 10% de las metacelulas
+    # Solo lo usa la curva de sparsity (sparsity_scan): genes en >= 10% de las
+    # metacelulas. La matriz de ARACNe usa los genes de aracne.genes
+    min_frac_expressed: 0.1
 
-  # Bootstraps 
+  # Genes de la red: UN conjunto por tipo celular, igual para todos los fenotipos y
+  # gammas (para que las redes sean comparables). Se calcula sobre celulas (no
+  # metacelulas) de los fenotipos submuestreados juntos:
+  #   1. detectados (counts > 0) en >= min_frac_cells de las celulas
+  #   2. se quitan los que coinciden con exclude_patterns
+  #   3. de esos, los n_variable mas variables (Seurat vst)
+  # El costo de ARACNe crece con el cuadrado del numero de genes (todos son
+  # reguladores): ~12.5k genes -> ~10.5 h por bootstrap.
+  genes:
+    min_frac_cells: 0.05
+    n_variable: 4000
+    exclude_patterns:
+      - "^MT-"                                   # mitocondriales
+      # ribosomales (84 genes: RPL*/RPS*, RPLP0-2, RPSA, RPS4Y1/2). No quita las
+      # cinasas RPS6K*, ni RPL22L1/RPL26L1/RPL7L1, ni antisentido (RPL34-AS1)
+      - "^RP[SL][0-9]+[A-Z]*$|^RPLP[0-9]$|^RPSA$|^RPS4Y[12]$"
+
+  # Bootstraps
   bootstrap:
-    n_boot: 2               # piloto; subir a 100 para la corrida final
-    threads: 4                   # hilos por bootstrap
+    n_boot: 100
+    threads: 4                   # hilos por bootstrap (ARACNe usa algo mas)
 
   # Memoria por paso (GB)
   # Se usa para Java (-Xmx) y para que Snakemake calcule cuantos
@@ -151,8 +170,10 @@ aracne:
   # Si ves OutOfMemoryError en los logs de bootstrap, sube bootstrap_gb.
   memory: #Tener cuidado con cuanto darle a aracne-suele tomar mas 
     threshold_gb: 5
-    bootstrap_gb: 8
-    consolidate_gb: 5
+    # ~12.5k genes usaban ~21 GB; con 8 GB (heap 6G) y ~20k genes hubo OutOfMemoryError
+    # y ARACNe se quedo colgado. Con 4000 genes deberia bastar; revisar el benchmark
+    bootstrap_gb: 12
+    consolidate_gb: 16
 # ── Corrida final (lo que pide `rule all`) ─────────────────
   # Define QUE redes se construyen cuando lanzas el pipeline sin objetivos.
   # Local: solo astrocitos, gamma 10. Servidor: ampliar las listas.

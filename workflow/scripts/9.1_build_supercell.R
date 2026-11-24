@@ -6,19 +6,7 @@ suppressPackageStartupMessages({
   library(Matrix)
 })
 
-# Install SuperCell inside the conda environment (only the first time)
-env_prefix <- Sys.getenv("CONDA_PREFIX") #activa el ambiente 
-stopifnot("CONDA_PREFIX is empty: run this script through Snakemake with --use-conda" = nzchar(env_prefix))
-env_lib <- file.path(env_prefix, "lib", "R", "library")
-.libPaths(c(env_lib, .libPaths()))
-
-if (!requireNamespace("SuperCell", quietly = TRUE)) {
-  message("SuperCell is not in the environment; installing it from GitHub...")
-  if (!requireNamespace("remotes", quietly = TRUE)) {
-    install.packages("remotes", repos = "https://cloud.r-project.org", lib = env_lib)
-  }
-  remotes::install_github("GfellerLab/SuperCell", upgrade = "never", lib = env_lib)
-}
+# SuperCell is installed when the env is created (envs/supercell.post-deploy.sh)
 suppressPackageStartupMessages(library(SuperCell))
 
 phenotype_wc <- snakemake@wildcards[["phenotype"]]
